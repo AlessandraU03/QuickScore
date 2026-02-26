@@ -13,11 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -25,6 +21,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ale.quickscore.features.auth.presentation.components.AuthButton
 import com.ale.quickscore.features.auth.presentation.components.AuthErrorText
 import com.ale.quickscore.features.auth.presentation.components.AuthTextField
@@ -37,19 +34,14 @@ fun RegisterScreen(
     onNavigateToLogin: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-
-    var name by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var selectedRole by remember { mutableStateOf("participant") }
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
             Toast.makeText(context, "¡Registro exitoso! Por favor inicia sesión", Toast.LENGTH_LONG).show()
             viewModel.resetState()
-            onNavigateToLogin() // Redirigir explícitamente al login
+            onNavigateToLogin()
         }
     }
 
@@ -67,16 +59,16 @@ fun RegisterScreen(
         )
 
         AuthTextField(
-            value = name,
-            onValueChange = { name = it },
+            value = uiState.name,
+            onValueChange = { viewModel.onNameChange(it) },
             label = "Nombre"
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
         AuthTextField(
-            value = email,
-            onValueChange = { email = it },
+            value = uiState.email,
+            onValueChange = { viewModel.onEmailChange(it) },
             label = "Email",
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
         )
@@ -84,8 +76,8 @@ fun RegisterScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         AuthTextField(
-            value = password,
-            onValueChange = { password = it },
+            value = uiState.password,
+            onValueChange = { viewModel.onPasswordChange(it) },
             label = "Contraseña",
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
@@ -100,8 +92,8 @@ fun RegisterScreen(
         )
 
         RoleSelector(
-            selectedRole = selectedRole,
-            onRoleSelected = { selectedRole = it }
+            selectedRole = uiState.role,
+            onRoleSelected = { viewModel.onRoleChange(it) }
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -112,7 +104,7 @@ fun RegisterScreen(
 
         AuthButton(
             text = "Registrarse",
-            onClick = { viewModel.register(email, name, password, selectedRole) },
+            onClick = { viewModel.register() },
             isLoading = uiState.isLoading
         )
 

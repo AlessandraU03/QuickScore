@@ -21,7 +21,25 @@ class AuthViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(AuthUIState())
     val uiState = _uiState.asStateFlow()
 
-    fun login(email: String, password: String) {
+    fun onEmailChange(email: String) {
+        _uiState.update { it.copy(email = email) }
+    }
+
+    fun onPasswordChange(password: String) {
+        _uiState.update { it.copy(password = password) }
+    }
+
+    fun onNameChange(name: String) {
+        _uiState.update { it.copy(name = name) }
+    }
+
+    fun onRoleChange(role: String) {
+        _uiState.update { it.copy(role = role) }
+    }
+
+    fun login() {
+        val email = _uiState.value.email
+        val password = _uiState.value.password
         _uiState.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             val result = loginUseCase(email, password)
@@ -38,10 +56,11 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun register(email: String, name: String, password: String, role: String) {
+    fun register() {
+        val state = _uiState.value
         _uiState.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
-            val result = registerUseCase(email, name, password, role)
+            val result = registerUseCase(state.email, state.name, state.password, state.role)
             _uiState.update { currentState ->
                 result.fold(
                     onSuccess = { user ->

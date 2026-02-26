@@ -12,17 +12,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ale.quickscore.features.auth.presentation.components.AuthButton
 import com.ale.quickscore.features.auth.presentation.components.AuthErrorText
 import com.ale.quickscore.features.auth.presentation.components.AuthTextField
@@ -30,19 +27,17 @@ import com.ale.quickscore.features.auth.presentation.viewmodels.AuthViewModel
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
+    onLoginSuccess: (isHost: Boolean) -> Unit,
     onNavigateToRegister: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
+            val isHost = uiState.user?.role == "host"
             viewModel.resetState()
-            onLoginSuccess()
+            onLoginSuccess(isHost)
         }
     }
 
@@ -60,8 +55,8 @@ fun LoginScreen(
         )
 
         AuthTextField(
-            value = email,
-            onValueChange = { email = it },
+            value = uiState.email,
+            onValueChange = { viewModel.onEmailChange(it) },
             label = "Email",
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
         )
@@ -69,8 +64,8 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         AuthTextField(
-            value = password,
-            onValueChange = { password = it },
+            value = uiState.password,
+            onValueChange = { viewModel.onPasswordChange(it) },
             label = "Contraseña",
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
@@ -84,7 +79,7 @@ fun LoginScreen(
 
         AuthButton(
             text = "Iniciar sesión",
-            onClick = { viewModel.login(email, password) },
+            onClick = { viewModel.login() },
             isLoading = uiState.isLoading
         )
 

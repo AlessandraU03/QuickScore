@@ -12,13 +12,17 @@ data class RegisterRequest(
     @SerializedName("email") val email: String,
     @SerializedName("name") val name: String,
     @SerializedName("password") val password: String,
-    @SerializedName("role") val role: String // "host" | "participant"
+    @SerializedName("role") val role: String
 )
 
 // ---- Response ----
 data class AuthResponse(
-    @SerializedName("token") val token: String?, // Ahora es opcional
-    @SerializedName("user_id") val user_id: Int?,
+    @SerializedName("token") val token: String?,
+    @SerializedName("user") val user: UserDto? // Los datos están dentro de "user"
+)
+
+data class UserDto(
+    @SerializedName("id") val id: Int?,
     @SerializedName("name") val name: String?,
     @SerializedName("email") val email: String?,
     @SerializedName("role") val role: String?

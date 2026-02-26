@@ -1,5 +1,6 @@
 package com.ale.quickscore.core.di
 
+import android.util.Log
 import com.ale.quickscore.BuildConfig
 import dagger.Module
 import dagger.Provides
@@ -24,13 +25,14 @@ object NetworkModule {
             })
             .addInterceptor { chain ->
                 val token = tokenProvider.getToken()
-                val request = if (token != null) {
-                    chain.request().newBuilder()
-                        .addHeader("Authorization", "Bearer $token")
-                        .build()
-                } else {
-                    chain.request()
-                }
+                Log.d("NetworkModule", "Usando token: ${token?.take(10)}...")
+                
+                val request = chain.request().newBuilder().apply {
+                    if (!token.isNullOrBlank()) {
+                        addHeader("Authorization", "Bearer $token")
+                    }
+                }.build()
+
                 chain.proceed(request)
             }
             .build()

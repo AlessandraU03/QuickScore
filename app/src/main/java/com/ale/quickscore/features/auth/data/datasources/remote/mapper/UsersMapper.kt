@@ -5,10 +5,10 @@ import com.ale.quickscore.features.auth.domain.entities.User
 
 fun AuthResponse.toDomain(): User {
     return User(
-        id = user_id ?: 0,
-        name = name ?: "",
-        email = email ?: "",
-        role = role ?: "",
+        id = user?.id ?: 0,
+        name = user?.name ?: "",
+        email = user?.email ?: "",
+        role = user?.role ?: "",
         token = token ?: ""
     )
 }
