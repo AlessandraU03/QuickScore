@@ -37,6 +37,14 @@ class AuthViewModel @Inject constructor(
         _uiState.update { it.copy(role = role) }
     }
 
+    fun togglePasswordVisibility() {
+        _uiState.update { it.copy(isPasswordVisible = !it.isPasswordVisible) }
+    }
+
+    fun onAcceptTermsChange(accept: Boolean) {
+        _uiState.update { it.copy(acceptTerms = accept) }
+    }
+
     fun login() {
         val email = _uiState.value.email
         val password = _uiState.value.password
@@ -58,6 +66,11 @@ class AuthViewModel @Inject constructor(
 
     fun register() {
         val state = _uiState.value
+        if (!state.acceptTerms) {
+            _uiState.update { it.copy(error = "Debes aceptar los términos y condiciones") }
+            return
+        }
+
         _uiState.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             val result = registerUseCase(state.email, state.name, state.password, state.role)

@@ -10,5 +10,7 @@ data class AuthUIState(
     val isLoading: Boolean = false,
     val user: User? = null,
     val error: String? = null,
-    val isSuccess: Boolean = false
+    val isSuccess: Boolean = false,
+    val isPasswordVisible: Boolean = false,
+    val acceptTerms: Boolean = false
 )
