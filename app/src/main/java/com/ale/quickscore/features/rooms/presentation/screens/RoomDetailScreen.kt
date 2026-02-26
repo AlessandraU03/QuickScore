@@ -1,54 +1,52 @@
 package com.ale.quickscore.features.rooms.presentation.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Leaderboard
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.Quiz
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.ale.quickscore.features.questions.presentation.components.ActiveQuestionCard
 import com.ale.quickscore.features.questions.presentation.components.AnswerResultBanner
-import com.ale.quickscore.features.questions.presentation.components.HostQuestionCard
 import com.ale.quickscore.features.questions.presentation.screens.LaunchQuestionSheet
+import com.ale.quickscore.features.rooms.domain.entities.Participant
+import com.ale.quickscore.features.rooms.domain.entities.RankingItem
 import com.ale.quickscore.features.rooms.presentation.components.ConnectionStatusBadge
-import com.ale.quickscore.features.rooms.presentation.components.OnlineUsersRow
-import com.ale.quickscore.features.rooms.presentation.components.ParticipantItem
-import com.ale.quickscore.features.rooms.presentation.components.RoomCodeCard
-import com.ale.quickscore.features.rooms.presentation.components.SessionButton
-import com.ale.quickscore.features.rooms.presentation.components.WaitingMessage
 import com.ale.quickscore.features.rooms.presentation.viewmodels.RoomViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RoomDetailScreen(
     roomCode: String,
@@ -57,8 +55,6 @@ fun RoomDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isHost = uiState.room?.hostId == viewModel.getCurrentUserId()
-    val snackbarHostState = remember { SnackbarHostState() }
-    var showLaunchSheet by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(roomCode) { viewModel.initRoom(roomCode) }
 
@@ -66,183 +62,333 @@ fun RoomDetailScreen(
         if (uiState.sessionEnded) onSessionEnded(roomCode)
     }
 
-    LaunchedEffect(uiState.error) {
-        uiState.error?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.clearError()
-        }
-    }
-
-    // Diálogo de confirmación para kick
+    // Modal para expulsión
     if (uiState.showKickDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.onKickDismiss() },
-            title = { Text("Expulsar participante") },
-            text = { Text("¿Seguro que quieres expulsar a ${uiState.kickTargetName}?") },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFEF5350), modifier = Modifier.size(48.dp)) },
+            title = { Text("¿Confirmar expulsión?", fontWeight = FontWeight.Bold) },
+            text = { Text("Esta acción eliminará a @${uiState.kickTargetName} de la sala.", textAlign = TextAlign.Center) },
             confirmButton = {
-                TextButton(onClick = {
-                    uiState.kickTargetId?.let { viewModel.addScore(roomCode, it, 0) }
-                    viewModel.onKickDismiss()
-                }) { Text("Expulsar", color = MaterialTheme.colorScheme.error) }
+                Button(
+                    onClick = { viewModel.confirmKick() },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350))
+                ) { Text("Expulsar Usuario") }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.onKickDismiss() }) { Text("Cancelar") }
-            }
+                TextButton(onClick = { viewModel.onKickDismiss() }, modifier = Modifier.fillMaxWidth()) { Text("Cancelar") }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(28.dp)
         )
     }
 
+    // Decidir qué vista mostrar
+    if (!isHost && uiState.activeQuestion != null) {
+        ParticipantQuestionView(uiState, viewModel)
+    } else {
+        RoomManagementView(roomCode, isHost, uiState, viewModel)
+    }
+
+    if (uiState.showLaunchSheet) {
+        LaunchQuestionSheet(
+            roomCode = roomCode,
+            onDismiss = { viewModel.toggleLaunchSheet(false) }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RoomManagementView(
+    roomCode: String,
+    isHost: Boolean,
+    uiState: RoomUIState,
+    viewModel: RoomViewModel
+) {
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            if (isHost && uiState.sessionStarted && uiState.activeQuestion == null) {
-                ExtendedFloatingActionButton(
-                    onClick = { showLaunchSheet = true },
-                    icon = { Icon(Icons.Default.Quiz, contentDescription = null) },
-                    text = { Text("Lanzar pregunta") }
+        topBar = {
+            TopAppBar(
+                title = { Text("Detalle de Sala", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = { /* Back */ }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                },
+                actions = { ConnectionStatusBadge(isConnected = uiState.isConnected) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        },
+        bottomBar = {
+            BottomNavigationBar(selectedItem = "SALAS")
+        },
+        containerColor = Color(0xFFF8F9FE)
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            item { Spacer(modifier = Modifier.height(8.dp)) }
+            item { RoomCodeCard(roomCode) }
+            item { StaffSection() }
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("PARTICIPANTES (${uiState.room?.participants?.size ?: 0})", fontWeight = FontWeight.Bold)
+                    if (isHost) Text("Gestionar", color = Color(0xFF79747E), modifier = Modifier.clickable { })
+                }
+            }
+            items(uiState.room?.participants ?: emptyList()) { participant ->
+                ParticipantDetailItem(participant, isHost, viewModel, roomCode)
+            }
+            item {
+                if (isHost) {
+                    Button(
+                        onClick = {
+                            if (!uiState.sessionStarted) viewModel.startRoom(roomCode)
+                            else viewModel.toggleLaunchSheet(true)
+                        },
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C4DFF))
+                    ) {
+                        Text(if (!uiState.sessionStarted) "Iniciar sesión" else "Lanzar pregunta", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ParticipantQuestionView(
+    uiState: RoomUIState,
+    viewModel: RoomViewModel
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Trivia Master Pro", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                        Text("SALA #${uiState.room?.code}", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF7C4DFF), fontWeight = FontWeight.Bold))
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { }, modifier = Modifier.background(Color(0xFFF3EDFF), CircleShape)) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color(0xFF7C4DFF))
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { }) { Icon(Icons.Default.Info, null, tint = Color(0xFF7C4DFF)) }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        },
+        bottomBar = {
+            BottomNavigationBar(selectedItem = "JUEGO")
+        },
+        containerColor = Color.White
+    ) { padding ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Timer
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Timer, null, tint = Color(0xFF7C4DFF), modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("TIEMPO RESTANTE", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, color = Color(0xFF49454F)))
+                }
+                Surface(color = Color(0xFFF8F9FE), shape = RoundedCornerShape(12.dp)) {
+                    Text("12s", modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), fontWeight = FontWeight.Bold, color = Color(0xFF7C4DFF))
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            LinearProgressIndicator(
+                progress = { 0.6f },
+                modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                color = Color(0xFF7C4DFF),
+                trackColor = Color(0xFFF3EDFF)
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Question Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Text(
+                    text = uiState.activeQuestion?.text ?: "",
+                    modifier = Modifier.padding(24.dp),
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, lineHeight = 30.sp)
                 )
             }
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            if (uiState.isLoading && uiState.room == null) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Header
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (isHost) "Vista Host" else "Vista Participante",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            ConnectionStatusBadge(isConnected = uiState.isConnected)
-                        }
-                    }
 
-                    item { RoomCodeCard(code = roomCode) }
+            Spacer(modifier = Modifier.height(32.dp))
 
-                    // Usuarios en línea
-                    if (uiState.onlineUsers.isNotEmpty()) {
-                        item { OnlineUsersRow(onlineUsers = uiState.onlineUsers) }
-                    }
+            // Answer Input
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("TU RESPUESTA", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, color = Color(0xFF49454F)))
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = uiState.currentAnswer,
+                    onValueChange = { viewModel.onCurrentAnswerChange(it) },
+                    placeholder = { Text("Escribe tu respuesta aquí...", color = Color(0xFF948F99)) },
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Color(0xFFEADDFF),
+                        focusedBorderColor = Color(0xFF7C4DFF)
+                    )
+                )
+            }
 
-                    // Botones de sesión — solo host
-                    if (isHost) {
-                        item {
-                            if (!uiState.sessionStarted) {
-                                SessionButton(
-                                    text = "Iniciar sesión",
-                                    onClick = { viewModel.startRoom(roomCode) }
-                                )
-                            } else {
-                                SessionButton(
-                                    text = "Finalizar sesión",
-                                    onClick = { viewModel.endRoom(roomCode) },
-                                    isDestructive = true
-                                )
-                            }
-                        }
-                    }
+            Spacer(modifier = Modifier.height(24.dp))
 
-                    // Pregunta activa — vista HOST
-                    if (isHost) {
-                        uiState.activeQuestion?.let { q ->
-                            item {
-                                HostQuestionCard(
-                                    question = q,
-                                    onClose  = { viewModel.closeQuestion() }
-                                )
-                            }
-                        }
-                    }
+            Button(
+                onClick = { viewModel.submitAnswer() },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C4DFF)),
+                enabled = !uiState.isAnswering && uiState.currentAnswer.isNotBlank()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("ENVIAR RESPUESTA", fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(18.dp))
+                }
+            }
 
-                    // Pregunta activa — vista PARTICIPANTE
-                    if (!isHost && uiState.sessionStarted) {
-                        uiState.activeQuestion?.let { q ->
-                            item {
-                                ActiveQuestionCard(
-                                    question  = q,
-                                    isLoading = uiState.isAnswering,
-                                    onSubmit  = { answer -> viewModel.submitAnswer(answer) }
-                                )
-                            }
-                        }
-                    }
+            Spacer(modifier = Modifier.height(32.dp))
 
-                    // Banner resultado respuesta
-                    uiState.lastAnswerCorrect?.let { correct ->
-                        item {
-                            AnswerResultBanner(
-                                isCorrect    = correct,
-                                pointsEarned = uiState.lastAnswerPoints,
-                                message      = uiState.lastAnswerMessage
-                            )
-                        }
-                    }
-
-                    // Esperando sesión — participante
-                    if (!isHost && !uiState.sessionStarted) {
-                        item { WaitingMessage() }
-                    }
-
-                    // Lista participantes / ranking
-                    uiState.room?.let { room ->
-                        if (room.participants.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "Participantes (${room.participants.size})",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                            items(
-                                items = room.participants,
-                                key   = { it.userId }
-                            ) { participant ->
-                                ParticipantItem(
-                                    participant     = participant,
-                                    isHost          = isHost,
-                                    sessionStarted  = uiState.sessionStarted,
-                                    onAddPoint      = { viewModel.addScore(roomCode, participant.userId, 1) },
-                                    onSubtractPoint = { viewModel.addScore(roomCode, participant.userId, -1) },
-                                    onKick          = { viewModel.onKickRequest(participant.userId, participant.name) }
-                                )
-                            }
-                        } else {
-                            item {
-                                Text(
-                                    text = "Aún no hay participantes",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(vertical = 16.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    item { Spacer(modifier = Modifier.height(80.dp)) }
+            // Ranking
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Leaderboard, null, tint = Color(0xFF7C4DFF))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Ranking en Vivo", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                }
+                Text("${uiState.onlineUsers.size} JUGADORES", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF79747E)))
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                itemsIndexed(uiState.ranking.take(3)) { index, item ->
+                    LiveRankingItem(index + 1, item, isMe = item.userId == viewModel.getCurrentUserId())
                 }
             }
         }
     }
+}
 
-    if (showLaunchSheet) {
-        LaunchQuestionSheet(
-            roomCode  = roomCode,
-            onDismiss = { showLaunchSheet = false }
-        )
+@Composable
+fun LiveRankingItem(pos: Int, item: RankingItem, isMe: Boolean) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = if (isMe) Color(0xFFF3EDFF) else Color.White),
+        border = if (isMe) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF7C4DFF)) else androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF3F4F9))
+    ) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(32.dp).background(if (isMe) Color(0xFF7C4DFF) else Color(0xFFF8F9FE), CircleShape), contentAlignment = Alignment.Center) {
+                Text(pos.toString(), color = if (isMe) Color.White else Color(0xFF79747E), fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(if (isMe) "Tú (${item.name})" else item.name, fontWeight = FontWeight.Bold)
+                if (isMe) Text("RACHA: 3 🔥", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFFFF9800), fontWeight = FontWeight.Bold))
+            }
+            Text("${item.score} pts", fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C4DFF))
+        }
+    }
+}
+
+@Composable
+fun RoomCodeCard(code: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE0E0E0))
+    ) {
+        Column(modifier = Modifier.padding(24.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("CÓDIGO DE ACCESO", style = MaterialTheme.typography.labelMedium.copy(color = Color(0xFF79747E)))
+                    Text("#$code", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C4DFF)))
+                }
+                IconButton(onClick = { }, modifier = Modifier.size(48.dp).background(Color(0xFF7C4DFF), RoundedCornerShape(12.dp))) {
+                    Icon(Icons.Default.ContentCopy, null, tint = Color.White)
+                }
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+            Box(modifier = Modifier.fillMaxWidth().height(140.dp).clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(listOf(Color(0xFFD81B60), Color(0xFF1A237E))))) {
+                Surface(modifier = Modifier.padding(16.dp).align(Alignment.BottomStart), color = Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(8.dp)) {
+                    Text("VISTA DE SALA", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall.copy(color = Color.White))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StaffSection() {
+    Column {
+        Text("ANFITRIÓN Y STAFF", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy((-12).dp)) {
+            repeat(3) { Surface(modifier = Modifier.size(48.dp), shape = CircleShape, border = androidx.compose.foundation.BorderStroke(2.dp, Color.White), color = Color(0xFFE0E0E0)) { } }
+            Surface(modifier = Modifier.size(48.dp), shape = CircleShape, border = androidx.compose.foundation.BorderStroke(2.dp, Color.White), color = Color(0xFFF3EDFF)) {
+                Box(contentAlignment = Alignment.Center) { Text("+2", color = Color(0xFF7C4DFF), fontWeight = FontWeight.Bold) }
+            }
+        }
+    }
+}
+
+@Composable
+fun ParticipantDetailItem(participant: Participant, isHost: Boolean, viewModel: RoomViewModel, roomCode: String) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF3F4F9))) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(modifier = Modifier.size(48.dp), shape = CircleShape, color = Color(0xFFFFF9C4)) { }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(participant.name, fontWeight = FontWeight.Bold)
+                Text("Puntos: ${participant.score}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF79747E))
+            }
+            if (isHost) {
+                Surface(color = Color(0xFFF3F4F9), shape = RoundedCornerShape(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { viewModel.addScore(roomCode, participant.userId, -1) }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Remove, null, modifier = Modifier.size(16.dp)) }
+                        Text("${participant.score}", fontWeight = FontWeight.Bold)
+                        IconButton(onClick = { viewModel.addScore(roomCode, participant.userId, 1) }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp)) }
+                    }
+                }
+                IconButton(onClick = { viewModel.onKickRequest(participant.userId, participant.name) }) { Icon(Icons.Default.PersonRemove, null, tint = Color(0xFFE0E0E0)) }
+            }
+        }
+    }
+}
+
+@Composable
+fun BottomNavigationBar(selectedItem: String) {
+    NavigationBar(containerColor = Color.White) {
+        val items = listOf("JUEGO" to Icons.Default.Quiz, "RANKING" to Icons.Default.EmojiEvents, "CHAT" to Icons.Default.Chat, "PERFIL" to Icons.Default.Person)
+        items.forEach { (label, icon) ->
+            NavigationBarItem(
+                selected = selectedItem == label,
+                onClick = { },
+                icon = { Icon(icon, null) },
+                label = { Text(label) },
+                colors = NavigationBarItemDefaults.colors(selectedIconColor = Color(0xFF7C4DFF), selectedTextColor = Color(0xFF7C4DFF), indicatorColor = Color(0xFFF3EDFF))
+            )
+        }
     }
 }

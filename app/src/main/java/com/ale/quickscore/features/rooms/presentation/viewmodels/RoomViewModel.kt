@@ -52,6 +52,22 @@ class RoomViewModel @Inject constructor(
 
     fun getCurrentUserId(): Int = sessionManager.getUserId()
 
+    // ── Input ────────────────────────────────────────────────
+
+    fun onInputCodeChange(code: String) {
+        _uiState.update { it.copy(inputCode = code.uppercase()) }
+    }
+
+    fun onCurrentAnswerChange(answer: String) {
+        _uiState.update { it.copy(currentAnswer = answer) }
+    }
+
+    // ── UI Control ───────────────────────────────────────────
+
+    fun toggleLaunchSheet(show: Boolean) {
+        _uiState.update { it.copy(showLaunchSheet = show) }
+    }
+
     // ── Sala ────────────────────────────────────────────────
 
     fun createRoom() = viewModelScope.launch {
@@ -68,7 +84,11 @@ class RoomViewModel @Inject constructor(
         )
     }
 
-    fun joinRoom(code: String) = viewModelScope.launch {
+    fun joinRoom(code: String = _uiState.value.inputCode) = viewModelScope.launch {
+        if (code.isBlank()) {
+            _uiState.update { it.copy(error = "Ingresa un código válido") }
+            return@launch
+        }
         _uiState.update { it.copy(isLoading = true, error = null) }
         joinRoomUseCase(code).fold(
             onSuccess = {
@@ -118,11 +138,18 @@ class RoomViewModel @Inject constructor(
         _uiState.update { it.copy(showKickDialog = false, kickTargetId = null, kickTargetName = "") }
     }
 
+    fun confirmKick() = viewModelScope.launch {
+        val targetId = _uiState.value.kickTargetId ?: return@launch
+        onKickDismiss()
+    }
+
     // ── Preguntas ─────────────────────────────────────────────
 
     fun launchQuestion(text: String, correctAnswer: String, points: Int) = viewModelScope.launch {
         launchQuestionUseCase(currentRoomCode, text, correctAnswer, points).fold(
-            onSuccess = { q -> _uiState.update { it.copy(activeQuestion = q) } },
+            onSuccess = { q -> 
+                _uiState.update { it.copy(activeQuestion = q, showLaunchSheet = false) } 
+            },
             onFailure = { e -> _uiState.update { it.copy(error = e.message) } }
         )
     }
@@ -135,20 +162,23 @@ class RoomViewModel @Inject constructor(
         )
     }
 
-    fun submitAnswer(answer: String) = viewModelScope.launch {
+    fun submitAnswer() = viewModelScope.launch {
         val qId = _uiState.value.activeQuestion?.id ?: return@launch
+        val answer = _uiState.value.currentAnswer
+        if (answer.isBlank()) return@launch
+
         _uiState.update { it.copy(isAnswering = true) }
         submitAnswerUseCase(currentRoomCode, qId, answer).fold(
             onSuccess = { result ->
                 _uiState.update {
                     it.copy(
                         isAnswering       = false,
+                        currentAnswer     = "",
                         lastAnswerCorrect = result.isCorrect,
                         lastAnswerPoints  = result.pointsEarned,
                         lastAnswerMessage = result.message
                     )
                 }
-                // Auto-ocultar banner tras 3s
                 delay(3000)
                 _uiState.update { it.copy(lastAnswerCorrect = null, lastAnswerPoints = 0, lastAnswerMessage = "") }
             },

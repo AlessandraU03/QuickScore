@@ -28,6 +28,7 @@ data class RoomUIState(
     // Pregunta activa
     val activeQuestion: Question? = null,
     val isAnswering: Boolean = false,
+    val currentAnswer: String = "", // Added for participant answer input
 
     // Resultado de la última respuesta enviada
     val lastAnswerCorrect: Boolean? = null,
@@ -37,5 +38,11 @@ data class RoomUIState(
     // Kick dialog
     val showKickDialog: Boolean = false,
     val kickTargetId: Int? = null,
-    val kickTargetName: String = ""
+    val kickTargetName: String = "",
+    
+    // UI State for Code Input (Home Participant)
+    val inputCode: String = "",
+
+    // UI State for Bottom Sheets
+    val showLaunchSheet: Boolean = false
 )

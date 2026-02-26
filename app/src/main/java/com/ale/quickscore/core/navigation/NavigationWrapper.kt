@@ -46,12 +46,22 @@ fun NavigationWrapper() {
                 HomeHostScreen(
                     onNavigateToRoom = { roomCode ->
                         navController.navigate(RoomDetailRoute(roomCode, isHost = true))
+                    },
+                    onLogout = {
+                        navController.navigate(LoginRoute) {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
                 )
             } else {
                 HomeParticipantScreen(
                     onNavigateToRoom = { roomCode ->
                         navController.navigate(RoomDetailRoute(roomCode, isHost = false))
+                    },
+                    onLogout = {
+                        navController.navigate(LoginRoute) {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
                 )
             }
