@@ -9,6 +9,7 @@ import com.ale.quickscore.features.auth.presentation.screens.LoginScreen
 import com.ale.quickscore.features.auth.presentation.screens.RegisterScreen
 import com.ale.quickscore.features.rooms.presentation.screens.HomeHostScreen
 import com.ale.quickscore.features.rooms.presentation.screens.HomeParticipantScreen
+import com.ale.quickscore.features.rooms.presentation.screens.LeaderboardScreen
 import com.ale.quickscore.features.rooms.presentation.screens.RoomDetailScreen
 
 @Composable
@@ -43,14 +44,14 @@ fun NavigationWrapper() {
             val route = backStackEntry.toRoute<HomeRoute>()
             if (route.isHost) {
                 HomeHostScreen(
-                    onNavigateToRoom = { roomCode, isHost ->
-                        navController.navigate(RoomDetailRoute(roomCode, isHost))
+                    onNavigateToRoom = { roomCode ->
+                        navController.navigate(RoomDetailRoute(roomCode, isHost = true))
                     }
                 )
             } else {
                 HomeParticipantScreen(
-                    onNavigateToRoom = { roomCode, isHost ->
-                        navController.navigate(RoomDetailRoute(roomCode, isHost))
+                    onNavigateToRoom = { roomCode ->
+                        navController.navigate(RoomDetailRoute(roomCode, isHost = false))
                     }
                 )
             }
@@ -62,11 +63,22 @@ fun NavigationWrapper() {
                 roomCode = route.roomCode,
                 onSessionEnded = { roomCode ->
                     navController.navigate(LeaderboardRoute(roomCode)) {
-                        popUpTo(HomeRoute(route.isHost))
+                        popUpTo(HomeRoute(route.isHost)) { inclusive = false }
                     }
                 }
             )
         }
 
+        composable<LeaderboardRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<LeaderboardRoute>()
+            LeaderboardScreen(
+                roomCode = route.roomCode,
+                onBack = {
+                    navController.navigate(LoginRoute) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
     }
 }

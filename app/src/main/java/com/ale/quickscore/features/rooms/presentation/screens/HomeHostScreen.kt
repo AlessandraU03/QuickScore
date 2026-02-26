@@ -7,9 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,19 +19,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ale.quickscore.features.auth.presentation.components.AuthButton
 import com.ale.quickscore.features.rooms.presentation.viewmodels.RoomViewModel
 
 @Composable
 fun HomeHostScreen(
-    onNavigateToRoom: (roomCode: String, isHost: Boolean) -> Unit,
+    onNavigateToRoom: (roomCode: String) -> Unit,
     viewModel: RoomViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(uiState.room) {
-        uiState.room?.let { room ->
-            onNavigateToRoom(room.code, true)
-        }
+        uiState.room?.let { onNavigateToRoom(it.code) }
     }
 
     Column(
@@ -53,7 +49,7 @@ fun HomeHostScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Crea una sala para comenzar a gestionar los puntajes en tiempo real.",
+            text = "Crea una sala para comenzar la competencia en tiempo real.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -62,21 +58,11 @@ fun HomeHostScreen(
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        Button(
+        AuthButton(
+            text = "Crear sala",
             onClick = { viewModel.createRoom() },
-            enabled = !uiState.isLoading,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (uiState.isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            } else {
-                Text("Crear sala")
-            }
-        }
+            isLoading = uiState.isLoading
+        )
 
         uiState.error?.let {
             Spacer(modifier = Modifier.height(12.dp))

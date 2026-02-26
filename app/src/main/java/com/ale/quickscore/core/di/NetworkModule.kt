@@ -40,6 +40,7 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    @AuthRetrofit
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
             .baseUrl(BuildConfig.BASE_URL)

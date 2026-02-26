@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -28,6 +29,7 @@ fun ParticipantItem(
     sessionStarted: Boolean,
     onAddPoint: () -> Unit,
     onSubtractPoint: () -> Unit,
+    onKick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -44,39 +46,38 @@ fun ParticipantItem(
             Text(
                 text = participant.name,
                 style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f)
             )
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (isHost && sessionStarted) {
-                    IconButton(
-                        onClick = onSubtractPoint,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Remove,
-                            contentDescription = "Restar punto"
-                        )
+                    IconButton(onClick = onSubtractPoint, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Remove, contentDescription = "Restar punto")
                     }
                 }
 
                 Text(
-                    text = participant.score.toString(),
+                    text = "${participant.score}",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
 
                 if (isHost && sessionStarted) {
-                    IconButton(
-                        onClick = onAddPoint,
-                        modifier = Modifier.size(32.dp)
-                    ) {
+                    IconButton(onClick = onAddPoint, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Add, contentDescription = "Agregar punto")
+                    }
+                }
+
+                if (isHost) {
+                    IconButton(onClick = onKick, modifier = Modifier.size(32.dp)) {
                         Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Agregar punto"
+                            Icons.Default.PersonRemove,
+                            contentDescription = "Expulsar",
+                            tint = MaterialTheme.colorScheme.error
                         )
                     }
                 }

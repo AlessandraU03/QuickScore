@@ -1,7 +1,7 @@
-package com.ale.quickscore.features.rooms.data.di
+package com.ale.quickscore.features.questions.data.di
 
 import com.ale.quickscore.core.di.AuthRetrofit
-import com.ale.quickscore.features.rooms.data.datasources.remote.api.RoomsApi
+import com.ale.quickscore.features.questions.data.datasources.remote.api.QuestionsApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -11,10 +11,9 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-object RoomsNetworkModule {
-
+object QuestionsNetworkModule {
     @Provides
     @Singleton
-    fun provideRoomsApi(@AuthRetrofit retrofit: Retrofit): RoomsApi =
-        retrofit.create(RoomsApi::class.java)
+    fun provideQuestionsApi(@AuthRetrofit retrofit: Retrofit): QuestionsApi =
+        retrofit.create(QuestionsApi::class.java)
 }

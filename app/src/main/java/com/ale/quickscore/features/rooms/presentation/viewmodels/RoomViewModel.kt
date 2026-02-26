@@ -3,17 +3,23 @@ package com.ale.quickscore.features.rooms.presentation.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ale.quickscore.core.di.SessionManager
-
+import com.ale.quickscore.features.questions.domain.entities.Question
+import com.ale.quickscore.features.questions.domain.usecases.CloseQuestionUseCase
+import com.ale.quickscore.features.questions.domain.usecases.GetCurrentQuestionUseCase
+import com.ale.quickscore.features.questions.domain.usecases.LaunchQuestionUseCase
+import com.ale.quickscore.features.questions.domain.usecases.SubmitAnswerUseCase
 import com.ale.quickscore.features.rooms.data.datasources.remote.websocket.WebSocketManager
 import com.ale.quickscore.features.rooms.domain.usecases.AddScoreUseCase
 import com.ale.quickscore.features.rooms.domain.usecases.CreateRoomUseCase
 import com.ale.quickscore.features.rooms.domain.usecases.EndRoomUseCase
+import com.ale.quickscore.features.rooms.domain.usecases.GetRankingUseCase
 import com.ale.quickscore.features.rooms.domain.usecases.GetRoomUseCase
 import com.ale.quickscore.features.rooms.domain.usecases.JoinRoomUseCase
 import com.ale.quickscore.features.rooms.domain.usecases.StartRoomUseCase
 import com.ale.quickscore.features.rooms.presentation.screens.OnlineUser
 import com.ale.quickscore.features.rooms.presentation.screens.RoomUIState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
@@ -30,8 +36,11 @@ class RoomViewModel @Inject constructor(
     private val startRoomUseCase: StartRoomUseCase,
     private val endRoomUseCase: EndRoomUseCase,
     private val addScoreUseCase: AddScoreUseCase,
-    // Preguntas
-
+    private val getRankingUseCase: GetRankingUseCase,
+    private val launchQuestionUseCase: LaunchQuestionUseCase,
+    private val getCurrentQuestionUseCase: GetCurrentQuestionUseCase,
+    private val closeQuestionUseCase: CloseQuestionUseCase,
+    private val submitAnswerUseCase: SubmitAnswerUseCase,
     private val wsManager: WebSocketManager,
     private val sessionManager: SessionManager
 ) : ViewModel() {
@@ -43,80 +52,153 @@ class RoomViewModel @Inject constructor(
 
     fun getCurrentUserId(): Int = sessionManager.getUserId()
 
-    fun initRoom(roomCode: String) {
-        currentRoomCode = roomCode
-        loadRoom(roomCode)
-        connectWebSocket(roomCode)
-
-    }
-
     // ── Sala ────────────────────────────────────────────────
 
     fun createRoom() = viewModelScope.launch {
-        _uiState.update { it.copy(isLoading = true) }
+        _uiState.update { it.copy(isLoading = true, error = null) }
         createRoomUseCase().fold(
             onSuccess = { code ->
                 currentRoomCode = code
                 loadRoom(code)
+                connectWebSocket(code)
             },
-            onFailure = { error ->
-                _uiState.update { it.copy(isLoading = false, error = error.message) }
+            onFailure = { e ->
+                _uiState.update { it.copy(isLoading = false, error = e.message) }
             }
         )
     }
 
     fun joinRoom(code: String) = viewModelScope.launch {
-        _uiState.update { it.copy(isLoading = true) }
+        _uiState.update { it.copy(isLoading = true, error = null) }
         joinRoomUseCase(code).fold(
-            onSuccess = { initRoom(code) },
-            onFailure = { error ->
-                _uiState.update { it.copy(isLoading = false, error = error.message) }
+            onSuccess = {
+                currentRoomCode = code
+                loadRoom(code)
+                connectWebSocket(code)
+                loadCurrentQuestion(code)
+            },
+            onFailure = { e ->
+                _uiState.update { it.copy(isLoading = false, error = e.message) }
             }
         )
     }
 
-    fun startRoom(roomCode: String) = viewModelScope.launch { startRoomUseCase(roomCode) }
+    fun initRoom(roomCode: String) {
+        if (currentRoomCode == roomCode) return
+        currentRoomCode = roomCode
+        loadRoom(roomCode)
+        connectWebSocket(roomCode)
+        loadCurrentQuestion(roomCode)
+        loadRanking(roomCode)
+    }
 
-    fun endRoom(roomCode: String) = viewModelScope.launch { endRoomUseCase(roomCode) }
+    fun startRoom(roomCode: String) = viewModelScope.launch {
+        startRoomUseCase(roomCode).onFailure { e ->
+            _uiState.update { it.copy(error = e.message) }
+        }
+    }
+
+    fun endRoom(roomCode: String) = viewModelScope.launch {
+        endRoomUseCase(roomCode).onFailure { e ->
+            _uiState.update { it.copy(error = e.message) }
+        }
+    }
 
     fun addScore(roomCode: String, targetUserId: Int, delta: Int) = viewModelScope.launch {
         addScoreUseCase(roomCode, targetUserId, delta)
     }
 
-    // ── Preguntas ────────────────────────────────────────────
+    // ── Kick dialog ──────────────────────────────────────────
 
-    fun clearAnswerResult() {
-        _uiState.update { it.copy(lastAnswerCorrect = null, lastAnswerPoints = 0, lastAnswerMessage = "") }
+    fun onKickRequest(userId: Int, name: String) {
+        _uiState.update { it.copy(showKickDialog = true, kickTargetId = userId, kickTargetName = name) }
     }
 
-    // ── Internos ─────────────────────────────────────────────
+    fun onKickDismiss() {
+        _uiState.update { it.copy(showKickDialog = false, kickTargetId = null, kickTargetName = "") }
+    }
 
-    private fun loadRoom(roomCode: String) {
-        viewModelScope.launch {
-            getRoomUseCase(roomCode).fold(
-                onSuccess = { room ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading      = false,
-                            room           = room,
-                            sessionStarted = room.status == "active"
-                        )
-                    }
-                },
-                onFailure = { error ->
-                    _uiState.update { it.copy(isLoading = false, error = error.message) }
+    // ── Preguntas ─────────────────────────────────────────────
+
+    fun launchQuestion(text: String, correctAnswer: String, points: Int) = viewModelScope.launch {
+        launchQuestionUseCase(currentRoomCode, text, correctAnswer, points).fold(
+            onSuccess = { q -> _uiState.update { it.copy(activeQuestion = q) } },
+            onFailure = { e -> _uiState.update { it.copy(error = e.message) } }
+        )
+    }
+
+    fun closeQuestion() = viewModelScope.launch {
+        val qId = _uiState.value.activeQuestion?.id ?: return@launch
+        closeQuestionUseCase(currentRoomCode, qId).fold(
+            onSuccess = { _uiState.update { it.copy(activeQuestion = null) } },
+            onFailure = { e -> _uiState.update { it.copy(error = e.message) } }
+        )
+    }
+
+    fun submitAnswer(answer: String) = viewModelScope.launch {
+        val qId = _uiState.value.activeQuestion?.id ?: return@launch
+        _uiState.update { it.copy(isAnswering = true) }
+        submitAnswerUseCase(currentRoomCode, qId, answer).fold(
+            onSuccess = { result ->
+                _uiState.update {
+                    it.copy(
+                        isAnswering       = false,
+                        lastAnswerCorrect = result.isCorrect,
+                        lastAnswerPoints  = result.pointsEarned,
+                        lastAnswerMessage = result.message
+                    )
                 }
-            )
-        }
+                // Auto-ocultar banner tras 3s
+                delay(3000)
+                _uiState.update { it.copy(lastAnswerCorrect = null, lastAnswerPoints = 0, lastAnswerMessage = "") }
+            },
+            onFailure = { e ->
+                _uiState.update { it.copy(isAnswering = false, error = e.message) }
+            }
+        )
     }
 
+    fun clearError() = _uiState.update { it.copy(error = null) }
 
-    private fun parseOnlineUser(payload: Map<String, Any>?): OnlineUser? {
-        payload ?: return null
+    // ── Internos ──────────────────────────────────────────────
+
+    private fun loadRoom(roomCode: String) = viewModelScope.launch {
+        getRoomUseCase(roomCode).fold(
+            onSuccess = { room ->
+                _uiState.update {
+                    it.copy(
+                        isLoading      = false,
+                        room           = room,
+                        sessionStarted = room.status == "active"
+                    )
+                }
+            },
+            onFailure = { e ->
+                _uiState.update { it.copy(isLoading = false, error = e.message) }
+            }
+        )
+    }
+
+    private fun loadRanking(roomCode: String) = viewModelScope.launch {
+        getRankingUseCase(roomCode).fold(
+            onSuccess = { ranking -> _uiState.update { it.copy(ranking = ranking) } },
+            onFailure = { }
+        )
+    }
+
+    private fun loadCurrentQuestion(roomCode: String) = viewModelScope.launch {
+        getCurrentQuestionUseCase(roomCode).fold(
+            onSuccess = { q -> _uiState.update { it.copy(activeQuestion = q) } },
+            onFailure = { }
+        )
+    }
+
+    private fun parseOnlineUser(map: Map<String, Any>?): OnlineUser? {
+        map ?: return null
         return OnlineUser(
-            userId = (payload["user_id"] as? Double)?.toInt() ?: return null,
-            name   = payload["name"] as? String ?: "",
-            role   = payload["role"] as? String ?: ""
+            userId = (map["user_id"] as? Double)?.toInt() ?: return null,
+            name   = map["name"] as? String ?: "",
+            role   = map["role"] as? String ?: ""
         )
     }
 
@@ -128,12 +210,12 @@ class RoomViewModel @Inject constructor(
             .onEach { connected -> _uiState.update { it.copy(isConnected = connected) } }
             .launchIn(viewModelScope)
 
-        // Score actualizado → recargar sala
         wsManager.onScoreUpdate()
-            .onEach { loadRoom(roomCode) }
-            .launchIn(viewModelScope)
+            .onEach {
+                loadRoom(roomCode)
+                loadRanking(roomCode)
+            }.launchIn(viewModelScope)
 
-        // Sesión
         wsManager.onSessionStarted()
             .onEach { _uiState.update { it.copy(sessionStarted = true) } }
             .launchIn(viewModelScope)
@@ -142,7 +224,6 @@ class RoomViewModel @Inject constructor(
             .onEach { _uiState.update { it.copy(sessionEnded = true) } }
             .launchIn(viewModelScope)
 
-        // Presencia — alguien se conectó
         wsManager.onParticipantConnected()
             .onEach { msg ->
                 parseOnlineUser(msg.payload)?.let { user ->
@@ -153,26 +234,21 @@ class RoomViewModel @Inject constructor(
                 }
             }.launchIn(viewModelScope)
 
-        // Presencia — alguien se desconectó
         wsManager.onParticipantDisconnected()
             .onEach { msg ->
                 val userId = (msg.payload?.get("user_id") as? Double)?.toInt()
-                userId?.let { id ->
-                    _uiState.update { state ->
-                        state.copy(onlineUsers = state.onlineUsers.filterNot { it.userId == id })
-                    }
+                _uiState.update { state ->
+                    state.copy(onlineUsers = state.onlineUsers.filterNot { it.userId == userId })
                 }
             }.launchIn(viewModelScope)
 
-        // Lista inicial de conectados al entrar
         wsManager.onOnlineList()
             .onEach { msg ->
-                val list = (msg.payload?.get("payload") as? List<Map<String, Any>>)
+                val list = (msg.payload as? List<Map<String, Any>>)
                     ?.mapNotNull { parseOnlineUser(it) } ?: emptyList()
                 _uiState.update { it.copy(onlineUsers = list) }
             }.launchIn(viewModelScope)
 
-        // Kick — si me expulsaron a mí
         wsManager.onParticipantKicked()
             .onEach { msg ->
                 val kickedId = (msg.payload?.get("user_id") as? Double)?.toInt()
@@ -185,18 +261,31 @@ class RoomViewModel @Inject constructor(
                 }
             }.launchIn(viewModelScope)
 
+        wsManager.onNewQuestion()
+            .onEach { msg ->
+                val q = Question(
+                    id     = (msg.payload?.get("id") as? Double)?.toInt() ?: 0,
+                    roomId = (msg.payload?.get("room_id") as? Double)?.toInt() ?: 0,
+                    text   = msg.payload?.get("text") as? String ?: "",
+                    points = (msg.payload?.get("points") as? Double)?.toInt() ?: 0,
+                    status = "open"
+                )
+                _uiState.update { it.copy(activeQuestion = q) }
+            }.launchIn(viewModelScope)
 
-        // Pregunta cerrada
-
-
-        // Alguien respondió correcto → recargar ranking
-        wsManager.onAnswerCorrect()
-            .onEach { loadRoom(roomCode) }
+        wsManager.onQuestionClosed()
+            .onEach { _uiState.update { it.copy(activeQuestion = null) } }
             .launchIn(viewModelScope)
+
+        wsManager.onAnswerCorrect()
+            .onEach {
+                loadRanking(roomCode)
+            }.launchIn(viewModelScope)
     }
 
     override fun onCleared() {
         super.onCleared()
         wsManager.disconnect()
+        currentRoomCode = ""
     }
 }

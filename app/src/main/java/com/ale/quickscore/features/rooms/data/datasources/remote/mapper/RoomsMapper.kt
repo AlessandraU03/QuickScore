@@ -16,7 +16,7 @@ fun RoomResponse.toDomain(): Room = Room(
 
 fun ParticipantDto.toDomain(): Participant = Participant(
     userId = user_id ?: 0,
-    name = name ?: "",
+    name = displayName, // Usamos la propiedad auxiliar que combina user_name y name
     score = score ?: 0
 )
 
