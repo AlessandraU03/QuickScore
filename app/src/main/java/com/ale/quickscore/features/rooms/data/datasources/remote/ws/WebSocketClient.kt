@@ -27,16 +27,16 @@ class WebSocketClient @Inject constructor(
     private val _connectionState = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
     val connectionState: SharedFlow<Boolean> = _connectionState
 
-    fun connect(roomCode: String, token: String) {
-        // Aseguramos que reemplace https -> wss o http -> ws correctamente
-        val wsBaseUrl = if (BuildConfig.BASE_URL.startsWith("https")) {
+    // name es requerido por el hub para los eventos de presencia
+    fun connect(roomCode: String, token: String, name: String) {
+        val wsBase = if (BuildConfig.BASE_URL.startsWith("https"))
             BuildConfig.BASE_URL.replace("https", "wss")
-        } else {
+        else
             BuildConfig.BASE_URL.replace("http", "ws")
-        }
 
-        val url = "${wsBaseUrl.trimEnd('/')}/ws?room=$roomCode&token=$token"
-        
+        val encodedName = java.net.URLEncoder.encode(name, "UTF-8")
+        val url = "${wsBase.trimEnd('/')}/ws?room=$roomCode&token=$token&name=$encodedName"
+
         Log.d("WebSocketClient", "Conectando a: $url")
 
         val request = Request.Builder().url(url).build()
@@ -47,27 +47,27 @@ class WebSocketClient @Inject constructor(
                 _connectionState.tryEmit(true)
             }
             override fun onMessage(webSocket: WebSocket, text: String) {
-                Log.d("WebSocketClient", "Mensaje recibido: $text")
+                Log.d("WebSocketClient", "Mensaje: $text")
                 try {
                     val message = gson.fromJson(text, WsMessage::class.java)
                     _messages.tryEmit(message)
-                } catch (e: Exception) { 
-                    Log.e("WebSocketClient", "Error parseando mensaje: ${e.message}")
+                } catch (e: Exception) {
+                    Log.e("WebSocketClient", "Error parseando: ${e.message}")
                 }
             }
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e("WebSocketClient", "Falla de conexión: ${t.message}")
+                Log.e("WebSocketClient", "Falla: ${t.message}")
                 _connectionState.tryEmit(false)
             }
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                Log.d("WebSocketClient", "Conexión cerrada: $reason")
+                Log.d("WebSocketClient", "Cerrado: $reason")
                 _connectionState.tryEmit(false)
             }
         })
     }
 
     fun disconnect() {
-        webSocket?.close(1000, "Usuario salió de la sala")
+        webSocket?.close(1000, "Usuario salió")
         webSocket = null
     }
 }

@@ -2,12 +2,26 @@ package com.ale.quickscore.features.rooms.presentation.screens
 
 import com.ale.quickscore.features.rooms.domain.entities.Room
 
+data class OnlineUser(
+    val userId: Int,
+    val name: String,
+    val role: String
+)
+
 data class RoomUIState(
-    val joinCode: String = "",
-    val isLoading: Boolean = false,
-    val room: Room? = null,
-    val isConnected: Boolean = false,
+    val joinCode: String      = "",
+    val isLoading: Boolean    = false,
+    val room: Room?           = null,
+    val isConnected: Boolean  = false,
     val sessionStarted: Boolean = false,
-    val sessionEnded: Boolean = false,
-    val error: String? = null
+    val sessionEnded: Boolean   = false,
+    val error: String?        = null,
+    // Presencia en tiempo real
+    val onlineUsers: List<OnlineUser> = emptyList(),
+    // Pregunta activa recibida por WS
+
+    // Resultado de la última respuesta enviada
+    val lastAnswerCorrect: Boolean? = null,
+    val lastAnswerPoints: Int       = 0,
+    val lastAnswerMessage: String   = ""
 )

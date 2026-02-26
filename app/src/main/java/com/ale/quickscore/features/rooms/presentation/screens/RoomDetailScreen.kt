@@ -12,7 +12,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -20,17 +24,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+
 import com.ale.quickscore.features.rooms.presentation.components.ConnectionStatusBadge
+import com.ale.quickscore.features.rooms.presentation.components.OnlineUsersRow
 import com.ale.quickscore.features.rooms.presentation.components.ParticipantItem
 import com.ale.quickscore.features.rooms.presentation.components.RoomCodeCard
 import com.ale.quickscore.features.rooms.presentation.components.SessionButton
 import com.ale.quickscore.features.rooms.presentation.components.WaitingMessage
 import com.ale.quickscore.features.rooms.presentation.viewmodels.RoomViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun RoomDetailScreen(
@@ -39,21 +49,26 @@ fun RoomDetailScreen(
     viewModel: RoomViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-
-    // ✅ isHost se calcula comparando hostId con userId guardado en sesión
     val isHost = uiState.room?.hostId == viewModel.getCurrentUserId()
+    var showLaunchSheet by remember { mutableStateOf(false) }
 
-    LaunchedEffect(roomCode) {
-        viewModel.initRoom(roomCode)
-    }
+    LaunchedEffect(roomCode) { viewModel.initRoom(roomCode) }
 
     LaunchedEffect(uiState.sessionEnded) {
-        if (uiState.sessionEnded) {
-            onSessionEnded(roomCode)
+        if (uiState.sessionEnded) onSessionEnded(roomCode)
+    }
+
+    // Auto-ocultar el banner de resultado tras 3 segundos
+    LaunchedEffect(uiState.lastAnswerCorrect) {
+        if (uiState.lastAnswerCorrect != null) {
+            delay(3000)
+            viewModel.clearAnswerResult()
         }
     }
 
-    Scaffold { paddingValues ->
+    Scaffold(
+
+    ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -84,8 +99,13 @@ fun RoomDetailScreen(
                     }
 
                     // Código de sala
-                    item {
-                        RoomCodeCard(code = roomCode)
+                    item { RoomCodeCard(code = roomCode) }
+
+                    // Usuarios en línea (presencia en tiempo real)
+                    if (uiState.onlineUsers.isNotEmpty()) {
+                        item {
+                            OnlineUsersRow(onlineUsers = uiState.onlineUsers)
+                        }
                     }
 
                     // Botones host
@@ -108,14 +128,14 @@ fun RoomDetailScreen(
                         }
                     }
 
+
+
                     // Participante esperando
                     if (!isHost && !uiState.sessionStarted) {
-                        item {
-                            WaitingMessage()
-                        }
+                        item { WaitingMessage() }
                     }
 
-                    // Lista de participantes
+                    // Lista de participantes con scores
                     uiState.room?.let { room ->
                         if (room.participants.isEmpty()) {
                             item {
@@ -129,31 +149,27 @@ fun RoomDetailScreen(
                         } else {
                             item {
                                 Text(
-                                    text = "Participantes (${room.participants.size})",
+                                    text = "Ranking (${room.participants.size})",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
                             items(
                                 items = room.participants,
-                                key = { it.userId }
+                                key   = { it.userId }
                             ) { participant ->
                                 ParticipantItem(
-                                    participant = participant,
-                                    isHost = isHost,
-                                    sessionStarted = uiState.sessionStarted,
-                                    onAddPoint = {
-                                        viewModel.addScore(roomCode, participant.userId, 1)
-                                    },
-                                    onSubtractPoint = {
-                                        viewModel.addScore(roomCode, participant.userId, -1)
-                                    }
+                                    participant     = participant,
+                                    isHost          = isHost,
+                                    sessionStarted  = uiState.sessionStarted,
+                                    onAddPoint      = { viewModel.addScore(roomCode, participant.userId, 1) },
+                                    onSubtractPoint = { viewModel.addScore(roomCode, participant.userId, -1) }
                                 )
                             }
                         }
                     }
 
-                    item { Spacer(modifier = Modifier.height(16.dp)) }
+                    item { Spacer(modifier = Modifier.height(80.dp)) }
                 }
             }
 
@@ -170,4 +186,6 @@ fun RoomDetailScreen(
             }
         }
     }
+
+
 }

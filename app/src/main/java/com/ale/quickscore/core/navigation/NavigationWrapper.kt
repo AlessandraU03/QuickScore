@@ -15,10 +15,7 @@ import com.ale.quickscore.features.rooms.presentation.screens.RoomDetailScreen
 fun NavigationWrapper() {
     val navController = rememberNavController()
 
-    NavHost(
-        navController = navController,
-        startDestination = LoginRoute
-    ) {
+    NavHost(navController = navController, startDestination = LoginRoute) {
 
         composable<LoginRoute> {
             LoginScreen(
@@ -27,23 +24,18 @@ fun NavigationWrapper() {
                         popUpTo(LoginRoute) { inclusive = true }
                     }
                 },
-                onNavigateToRegister = {
-                    navController.navigate(RegisterRoute)
-                }
+                onNavigateToRegister = { navController.navigate(RegisterRoute) }
             )
         }
 
         composable<RegisterRoute> {
             RegisterScreen(
                 onRegisterSuccess = {
-                    // Redirigir al login después del registro exitoso
                     navController.navigate(LoginRoute) {
                         popUpTo(RegisterRoute) { inclusive = true }
                     }
                 },
-                onNavigateToLogin = {
-                    navController.popBackStack()
-                }
+                onNavigateToLogin = { navController.popBackStack() }
             )
         }
 
@@ -68,7 +60,6 @@ fun NavigationWrapper() {
             val route = backStackEntry.toRoute<RoomDetailRoute>()
             RoomDetailScreen(
                 roomCode = route.roomCode,
-                // isHost no es necesario pasarlo, se calcula dentro del Composable
                 onSessionEnded = { roomCode ->
                     navController.navigate(LeaderboardRoute(roomCode)) {
                         popUpTo(HomeRoute(route.isHost))
@@ -76,5 +67,6 @@ fun NavigationWrapper() {
                 }
             )
         }
+
     }
 }
