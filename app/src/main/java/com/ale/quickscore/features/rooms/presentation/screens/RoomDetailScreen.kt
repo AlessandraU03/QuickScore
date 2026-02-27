@@ -160,7 +160,10 @@ fun RoomManagementView(
             }
             
             val displayParticipants = if (uiState.onlineUsers.isNotEmpty()) {
-                uiState.onlineUsers.map { Participant(it.userId, it.name, 0) } 
+                uiState.onlineUsers.map { onlineUser ->
+                    val score = uiState.ranking.find { it.userId == onlineUser.userId }?.score ?: 0
+                    Participant(onlineUser.userId, onlineUser.name, score)
+                } 
             } else {
                 uiState.room?.participants ?: emptyList()
             }
@@ -406,14 +409,27 @@ fun StaffSection() {
 
 @Composable
 fun ParticipantDetailItem(participant: Participant, isHost: Boolean, viewModel: RoomViewModel, roomCode: String) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF3F4F9))) {
+    val isMe = participant.userId == viewModel.getCurrentUserId()
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(), 
+        shape = RoundedCornerShape(24.dp), 
+        colors = CardDefaults.cardColors(containerColor = if (isMe) Color(0xFFF3EDFF) else Color.White), 
+        border = if (isMe) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF7C4DFF)) else androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF3F4F9))
+    ) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(modifier = Modifier.size(48.dp), shape = CircleShape, color = Color(0xFFFFF9C4)) { }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(participant.name, fontWeight = FontWeight.Bold)
+                Text(text = if (isMe) "Tú (${participant.name})" else participant.name, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "${participant.score} pts",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF7C4DFF),
+                    fontWeight = FontWeight.Bold
+                )
             }
-            if (isHost) {
+            if (isHost && !isMe) {
                 IconButton(onClick = { viewModel.onKickRequest(participant.userId, participant.name) }) { Icon(Icons.Default.PersonRemove, null, tint = Color(0xFFE0E0E0)) }
             }
         }
