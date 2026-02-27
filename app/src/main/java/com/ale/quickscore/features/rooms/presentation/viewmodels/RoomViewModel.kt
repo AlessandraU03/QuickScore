@@ -2,6 +2,8 @@ package com.ale.quickscore.features.rooms.presentation.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ale.quickscore.core.data.local.dao.AppStateDao
+import com.ale.quickscore.core.data.local.entities.AppStateEntity
 import com.ale.quickscore.core.di.SessionManager
 import com.ale.quickscore.features.questions.domain.entities.Question
 import com.ale.quickscore.features.questions.domain.usecases.CloseQuestionUseCase
@@ -43,7 +45,8 @@ class RoomViewModel @Inject constructor(
     private val closeQuestionUseCase: CloseQuestionUseCase,
     private val submitAnswerUseCase: SubmitAnswerUseCase,
     private val wsManager: WebSocketManager,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val appStateDao: AppStateDao  // Agregado para persistencia del estado
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RoomUIState())
@@ -115,6 +118,25 @@ class RoomViewModel @Inject constructor(
         connectWebSocket(roomCode)
         loadCurrentQuestion(roomCode)
         loadRanking(roomCode)
+        
+        // Guardar el estado de la aplicación para persistencia
+        saveAppState(roomCode, isInRoom = true)
+    }
+    
+    /**
+     * Guarda el estado actual de la aplicación
+     * Mejora de persistencia: permite restaurar la navegación
+     */
+    private fun saveAppState(roomCode: String, isInRoom: Boolean) {
+        viewModelScope.launch {
+            appStateDao.saveAppState(
+                AppStateEntity(
+                    currentRoomCode = roomCode,
+                    isInRoom = isInRoom,
+                    isHost = sessionManager.isHost()
+                )
+            )
+        }
     }
 
     fun startRoom(roomCode: String) = viewModelScope.launch {
@@ -330,6 +352,14 @@ class RoomViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         wsManager.disconnect()
+        
+        // Limpiar el estado solo si la sesión terminó
+        if (_uiState.value.sessionEnded) {
+            viewModelScope.launch {
+                appStateDao.clearAppState()
+            }
+        }
+        
         currentRoomCode = ""
     }
 }

@@ -2,7 +2,9 @@ package com.ale.quickscore.features.auth.presentation.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ale.quickscore.features.auth.domain.usecases.GetCurrentUserUseCase
 import com.ale.quickscore.features.auth.domain.usecases.LoginUseCase
+import com.ale.quickscore.features.auth.domain.usecases.LogoutUseCase
 import com.ale.quickscore.features.auth.domain.usecases.RegisterUseCase
 import com.ale.quickscore.features.auth.presentation.screens.AuthUIState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -15,11 +17,46 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val loginUseCase: LoginUseCase,
-    private val registerUseCase: RegisterUseCase
+    private val registerUseCase: RegisterUseCase,
+    private val getCurrentUserUseCase: GetCurrentUserUseCase,
+    private val logoutUseCase: LogoutUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AuthUIState())
     val uiState = _uiState.asStateFlow()
+
+    init {
+        // Verificar si hay una sesión activa al iniciar
+        checkCurrentSession()
+    }
+
+    /**
+     * Verifica si hay una sesión activa guardada
+     * Mejora de persistencia: permite auto-login
+     */
+    private fun checkCurrentSession() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            getCurrentUserUseCase().fold(
+                onSuccess = { user ->
+                    if (user != null) {
+                        _uiState.update { 
+                            it.copy(
+                                isLoading = false, 
+                                user = user, 
+                                isSuccess = true
+                            ) 
+                        }
+                    } else {
+                        _uiState.update { it.copy(isLoading = false) }
+                    }
+                },
+                onFailure = {
+                    _uiState.update { it.copy(isLoading = false) }
+                }
+            )
+        }
+    }
 
     fun onEmailChange(email: String) {
         _uiState.update { it.copy(email = email) }
@@ -84,6 +121,13 @@ class AuthViewModel @Inject constructor(
                     }
                 )
             }
+        }
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            logoutUseCase()
+            resetState()
         }
     }
 

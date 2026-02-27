@@ -1,5 +1,7 @@
 package com.ale.quickscore.features.auth.data.repositories
 
+import com.ale.quickscore.core.data.local.dao.UserDao
+import com.ale.quickscore.core.data.local.entities.toEntity
 import com.ale.quickscore.core.di.TokenProvider
 import com.ale.quickscore.core.di.SessionManager
 import com.ale.quickscore.features.auth.data.datasources.remote.api.AuthApi
@@ -14,7 +16,8 @@ import javax.inject.Inject
 class AuthRepositoryImpl @Inject constructor(
     private val api: AuthApi,
     private val tokenProvider: TokenProvider,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val userDao: UserDao  // Agregamos el DAO para persistencia
 ) : AuthRepository {
 
     override suspend fun login(email: String, password: String): Result<User> {
@@ -35,7 +38,13 @@ class AuthRepositoryImpl @Inject constructor(
                     role = userDto?.role ?: ""
                 )
 
-                Result.success(body.toDomain())
+                val user = body.toDomain()
+                
+                // Guardar usuario en la base de datos local
+                userDao.clearUsers() // Limpiar usuarios anteriores
+                userDao.insertUser(user.toEntity())
+
+                Result.success(user)
             } else {
                 val errorMsg = parseError(response.errorBody()?.string()) ?: "Error ${response.code()}"
                 Result.failure(Exception(errorMsg))
@@ -65,7 +74,13 @@ class AuthRepositoryImpl @Inject constructor(
                     role = userDto?.role ?: ""
                 )
 
-                Result.success(body.toDomain())
+                val user = body.toDomain()
+                
+                // Guardar usuario en la base de datos local
+                userDao.clearUsers()
+                userDao.insertUser(user.toEntity())
+
+                Result.success(user)
             } else {
                 val errorMsg = parseError(response.errorBody()?.string()) ?: "Error ${response.code()}"
                 Result.failure(Exception(errorMsg))

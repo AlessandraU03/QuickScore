@@ -99,6 +99,11 @@ dependencies {
     implementation(libs.hilt.android)                               // Implementación de Hilt
     implementation(libs.hilt.navigation.compose)                    // Integración con Jetpack Compose
     ksp(libs.hilt.compiler)                                         // KSP
+    
+    // Room Database para persistencia local
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
