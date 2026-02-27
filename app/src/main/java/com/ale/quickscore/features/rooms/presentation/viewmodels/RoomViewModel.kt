@@ -18,6 +18,7 @@ import com.ale.quickscore.features.rooms.domain.usecases.JoinRoomUseCase
 import com.ale.quickscore.features.rooms.domain.usecases.StartRoomUseCase
 import com.ale.quickscore.features.rooms.presentation.screens.OnlineUser
 import com.ale.quickscore.features.rooms.presentation.screens.RoomUIState
+import com.google.gson.JsonElement
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,7 +66,11 @@ class RoomViewModel @Inject constructor(
     // ── UI Control ───────────────────────────────────────────
 
     fun toggleLaunchSheet(show: Boolean) {
-        _uiState.update { it.copy(showLaunchSheet = show) }
+        if (show && !_uiState.value.sessionStarted) {
+            _uiState.update { it.copy(error = "Primero debes iniciar la sesión") }
+            return
+        }
+        _uiState.update { it.copy(showLaunchSheet = show, error = null) }
     }
 
     // ── Sala ────────────────────────────────────────────────
@@ -113,9 +118,15 @@ class RoomViewModel @Inject constructor(
     }
 
     fun startRoom(roomCode: String) = viewModelScope.launch {
-        startRoomUseCase(roomCode).onFailure { e ->
-            _uiState.update { it.copy(error = e.message) }
-        }
+        _uiState.update { it.copy(isLoading = true, error = null) }
+        startRoomUseCase(roomCode).fold(
+            onSuccess = {
+                _uiState.update { it.copy(isLoading = false, sessionStarted = true) }
+            },
+            onFailure = { e ->
+                _uiState.update { it.copy(isLoading = false, error = e.message) }
+            }
+        )
     }
 
     fun endRoom(roomCode: String) = viewModelScope.launch {
@@ -125,7 +136,9 @@ class RoomViewModel @Inject constructor(
     }
 
     fun addScore(roomCode: String, targetUserId: Int, delta: Int) = viewModelScope.launch {
-        addScoreUseCase(roomCode, targetUserId, delta)
+        addScoreUseCase(roomCode, targetUserId, delta).onSuccess {
+            loadRoom(roomCode) // Recargar para ver los puntos
+        }
     }
 
     // ── Kick dialog ──────────────────────────────────────────
@@ -223,12 +236,12 @@ class RoomViewModel @Inject constructor(
         )
     }
 
-    private fun parseOnlineUser(map: Map<String, Any>?): OnlineUser? {
-        map ?: return null
+    private fun parseOnlineUser(element: JsonElement?): OnlineUser? {
+        val obj = element?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
         return OnlineUser(
-            userId = (map["user_id"] as? Double)?.toInt() ?: return null,
-            name   = map["name"] as? String ?: "",
-            role   = map["role"] as? String ?: ""
+            userId = obj.get("user_id")?.asInt ?: return null,
+            name   = obj.get("name")?.asString ?: "",
+            role   = obj.get("role")?.asString ?: ""
         )
     }
 
@@ -266,7 +279,7 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onParticipantDisconnected()
             .onEach { msg ->
-                val userId = (msg.payload?.get("user_id") as? Double)?.toInt()
+                val userId = msg.payload?.takeIf { it.isJsonObject }?.asJsonObject?.get("user_id")?.asInt
                 _uiState.update { state ->
                     state.copy(onlineUsers = state.onlineUsers.filterNot { it.userId == userId })
                 }
@@ -274,14 +287,14 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onOnlineList()
             .onEach { msg ->
-                val list = (msg.payload as? List<Map<String, Any>>)
+                val list = msg.payload?.takeIf { it.isJsonArray }?.asJsonArray
                     ?.mapNotNull { parseOnlineUser(it) } ?: emptyList()
                 _uiState.update { it.copy(onlineUsers = list) }
             }.launchIn(viewModelScope)
 
         wsManager.onParticipantKicked()
             .onEach { msg ->
-                val kickedId = (msg.payload?.get("user_id") as? Double)?.toInt()
+                val kickedId = msg.payload?.takeIf { it.isJsonObject }?.asJsonObject?.get("user_id")?.asInt
                 if (kickedId == sessionManager.getUserId()) {
                     _uiState.update { it.copy(sessionEnded = true, error = "Fuiste expulsado de la sala") }
                 } else {
@@ -293,11 +306,12 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onNewQuestion()
             .onEach { msg ->
+                val p = msg.payload?.takeIf { it.isJsonObject }?.asJsonObject
                 val q = Question(
-                    id     = (msg.payload?.get("id") as? Double)?.toInt() ?: 0,
-                    roomId = (msg.payload?.get("room_id") as? Double)?.toInt() ?: 0,
-                    text   = msg.payload?.get("text") as? String ?: "",
-                    points = (msg.payload?.get("points") as? Double)?.toInt() ?: 0,
+                    id     = p?.get("id")?.asInt ?: 0,
+                    roomId = p?.get("room_id")?.asInt ?: 0,
+                    text   = p?.get("text")?.asString ?: "",
+                    points = p?.get("points")?.asInt ?: 0,
                     status = "open"
                 )
                 _uiState.update { it.copy(activeQuestion = q) }

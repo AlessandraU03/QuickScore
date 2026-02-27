@@ -8,6 +8,7 @@ import com.ale.quickscore.features.auth.data.datasources.remote.models.LoginRequ
 import com.ale.quickscore.features.auth.data.datasources.remote.models.RegisterRequest
 import com.ale.quickscore.features.auth.domain.entities.User
 import com.ale.quickscore.features.auth.domain.repositories.AuthRepository
+import org.json.JSONObject
 import javax.inject.Inject
 
 class AuthRepositoryImpl @Inject constructor(
@@ -36,7 +37,8 @@ class AuthRepositoryImpl @Inject constructor(
 
                 Result.success(body.toDomain())
             } else {
-                Result.failure(Exception("Error ${response.code()}: ${response.message()}"))
+                val errorMsg = parseError(response.errorBody()?.string()) ?: "Error ${response.code()}"
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -65,10 +67,23 @@ class AuthRepositoryImpl @Inject constructor(
 
                 Result.success(body.toDomain())
             } else {
-                Result.failure(Exception("Error ${response.code()}: ${response.message()}"))
+                val errorMsg = parseError(response.errorBody()?.string()) ?: "Error ${response.code()}"
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    private fun parseError(errorBody: String?): String? {
+        if (errorBody == null) return null
+        return try {
+            val json = JSONObject(errorBody)
+            // Intenta buscar el mensaje en diferentes campos comunes
+            json.optString("message").takeIf { it.isNotBlank() }
+                ?: json.optString("error").takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            null
         }
     }
 }

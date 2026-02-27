@@ -7,6 +7,7 @@ import com.ale.quickscore.features.questions.data.datasources.remote.model.Submi
 import com.ale.quickscore.features.questions.domain.entities.AnswerResult
 import com.ale.quickscore.features.questions.domain.entities.Question
 import com.ale.quickscore.features.questions.domain.repositories.QuestionsRepository
+import org.json.JSONObject
 import javax.inject.Inject
 
 class QuestionsRepositoryImpl @Inject constructor(
@@ -20,11 +21,11 @@ class QuestionsRepositoryImpl @Inject constructor(
         points: Int
     ): Result<Question> = runCatching {
         val res = api.launchQuestion(roomCode, LaunchQuestionRequest(text, correctAnswer, points))
-        when (res.code()) {
-            201, 200 -> res.body()?.toDomain() ?: throw Exception("Sin respuesta del servidor")
-            403 -> throw Exception("Solo el host puede lanzar preguntas")
-            400 -> throw Exception("La sesión debe estar activa")
-            else -> throw Exception("Error ${res.code()}")
+        if (res.isSuccessful) {
+            res.body()?.toDomain() ?: throw Exception("Sin respuesta del servidor")
+        } else {
+            val errorMsg = parseError(res.errorBody()?.string()) ?: "Error ${res.code()}"
+            throw Exception(errorMsg)
         }
     }
 
@@ -32,14 +33,20 @@ class QuestionsRepositoryImpl @Inject constructor(
         val res = api.getCurrentQuestion(roomCode)
         when (res.code()) {
             200  -> res.body()?.toDomain()
-            204  -> null  // sin pregunta activa
-            else -> throw Exception("Error ${res.code()}")
+            204  -> null
+            else -> {
+                val errorMsg = parseError(res.errorBody()?.string()) ?: "Error ${res.code()}"
+                throw Exception(errorMsg)
+            }
         }
     }
 
     override suspend fun closeQuestion(roomCode: String, questionId: Int): Result<Unit> = runCatching {
         val res = api.closeQuestion(roomCode, questionId)
-        if (!res.isSuccessful) throw Exception("Error ${res.code()}")
+        if (!res.isSuccessful) {
+            val errorMsg = parseError(res.errorBody()?.string()) ?: "Error ${res.code()}"
+            throw Exception(errorMsg)
+        }
     }
 
     override suspend fun submitAnswer(
@@ -48,10 +55,22 @@ class QuestionsRepositoryImpl @Inject constructor(
         answer: String
     ): Result<AnswerResult> = runCatching {
         val res = api.submitAnswer(roomCode, SubmitAnswerRequest(questionId, answer))
-        when (res.code()) {
-            200  -> res.body()?.toDomain() ?: throw Exception("Sin respuesta")
-            400  -> throw Exception("Ya respondiste esta pregunta o está cerrada")
-            else -> throw Exception("Error ${res.code()}")
+        if (res.isSuccessful) {
+            res.body()?.toDomain() ?: throw Exception("Sin respuesta")
+        } else {
+            val errorMsg = parseError(res.errorBody()?.string()) ?: "Error ${res.code()}"
+            throw Exception(errorMsg)
+        }
+    }
+
+    private fun parseError(errorBody: String?): String? {
+        if (errorBody == null) return null
+        return try {
+            val json = JSONObject(errorBody)
+            json.optString("message").takeIf { it.isNotBlank() }
+                ?: json.optString("error").takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            null
         }
     }
 }

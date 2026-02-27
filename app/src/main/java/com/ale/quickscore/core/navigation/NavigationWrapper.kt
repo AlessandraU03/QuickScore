@@ -75,7 +75,8 @@ fun NavigationWrapper() {
                     navController.navigate(LeaderboardRoute(roomCode)) {
                         popUpTo(HomeRoute(route.isHost)) { inclusive = false }
                     }
-                }
+                },
+                onBack = { navController.popBackStack() }
             )
         }
 

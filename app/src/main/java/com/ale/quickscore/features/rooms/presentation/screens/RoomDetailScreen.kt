@@ -12,20 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Leaderboard
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PersonRemove
-import androidx.compose.material.icons.filled.Quiz
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.ale.quickscore.features.questions.presentation.components.AnswerResultBanner
 import com.ale.quickscore.features.questions.presentation.screens.LaunchQuestionSheet
 import com.ale.quickscore.features.rooms.domain.entities.Participant
 import com.ale.quickscore.features.rooms.domain.entities.RankingItem
@@ -51,6 +37,7 @@ import com.ale.quickscore.features.rooms.presentation.viewmodels.RoomViewModel
 fun RoomDetailScreen(
     roomCode: String,
     onSessionEnded: (String) -> Unit,
+    onBack: () -> Unit,
     viewModel: RoomViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -84,11 +71,11 @@ fun RoomDetailScreen(
         )
     }
 
-    // Decidir qué vista mostrar
-    if (!isHost && uiState.activeQuestion != null) {
-        ParticipantQuestionView(uiState, viewModel)
+    // Si hay una pregunta activa, mostrar la vista de pregunta para ambos (o adaptada)
+    if (uiState.activeQuestion != null) {
+        QuestionView(isHost, uiState, viewModel, onBack)
     } else {
-        RoomManagementView(roomCode, isHost, uiState, viewModel)
+        RoomManagementView(roomCode, isHost, uiState, viewModel, onBack)
     }
 
     if (uiState.showLaunchSheet) {
@@ -105,14 +92,15 @@ fun RoomManagementView(
     roomCode: String,
     isHost: Boolean,
     uiState: RoomUIState,
-    viewModel: RoomViewModel
+    viewModel: RoomViewModel,
+    onBack: () -> Unit
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Detalle de Sala", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { /* Back */ }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                 },
                 actions = { ConnectionStatusBadge(isConnected = uiState.isConnected) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
@@ -161,9 +149,11 @@ fun RoomManagementView(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ParticipantQuestionView(
+fun QuestionView(
+    isHost: Boolean,
     uiState: RoomUIState,
-    viewModel: RoomViewModel
+    viewModel: RoomViewModel,
+    onBack: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -175,11 +165,16 @@ fun ParticipantQuestionView(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = { }, modifier = Modifier.background(Color(0xFFF3EDFF), CircleShape)) {
+                    IconButton(onClick = onBack, modifier = Modifier.background(Color(0xFFF3EDFF), CircleShape)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color(0xFF7C4DFF))
                     }
                 },
                 actions = {
+                    if (isHost) {
+                        IconButton(onClick = { viewModel.closeQuestion() }) {
+                            Icon(Icons.Default.Close, "Cerrar Pregunta", tint = Color.Red)
+                        }
+                    }
                     IconButton(onClick = { }) { Icon(Icons.Default.Info, null, tint = Color(0xFF7C4DFF)) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
@@ -233,36 +228,64 @@ fun ParticipantQuestionView(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Answer Input
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("TU RESPUESTA", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, color = Color(0xFF49454F)))
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = uiState.currentAnswer,
-                    onValueChange = { viewModel.onCurrentAnswerChange(it) },
-                    placeholder = { Text("Escribe tu respuesta aquí...", color = Color(0xFF948F99)) },
-                    modifier = Modifier.fillMaxWidth().height(120.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = Color(0xFFEADDFF),
-                        focusedBorderColor = Color(0xFF7C4DFF)
+            if (!isHost) {
+                // Answer Input for Participant
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("TU RESPUESTA", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, color = Color(0xFF49454F)))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = uiState.currentAnswer,
+                        onValueChange = { viewModel.onCurrentAnswerChange(it) },
+                        placeholder = { Text("Escribe tu respuesta aquí...", color = Color(0xFF948F99)) },
+                        modifier = Modifier.fillMaxWidth().height(120.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = Color(0xFFEADDFF),
+                            focusedBorderColor = Color(0xFF7C4DFF)
+                        )
                     )
-                )
-            }
+                }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-            Button(
-                onClick = { viewModel.submitAnswer() },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C4DFF)),
-                enabled = !uiState.isAnswering && uiState.currentAnswer.isNotBlank()
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("ENVIAR RESPUESTA", fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(18.dp))
+                Button(
+                    onClick = { viewModel.submitAnswer() },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C4DFF)),
+                    enabled = !uiState.isAnswering && uiState.currentAnswer.isNotBlank()
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("ENVIAR RESPUESTA", fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(18.dp))
+                    }
+                }
+            } else {
+                // Host specific view while question is active
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF3EDFF))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Groups, contentDescription = null, tint = Color(0xFF7C4DFF), modifier = Modifier.size(32.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Los estudiantes están respondiendo...", fontWeight = FontWeight.Bold, color = Color(0xFF7C4DFF))
+                        Text("${uiState.onlineUsers.size - 1} participantes activos", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                OutlinedButton(
+                    onClick = { viewModel.closeQuestion() },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.Red)
+                ) {
+                    Text("FINALIZAR PREGUNTA AHORA", fontWeight = FontWeight.Bold)
                 }
             }
 
