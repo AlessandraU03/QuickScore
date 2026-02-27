@@ -17,9 +17,7 @@ secrets {
 
 android {
     namespace = "com.ale.quickscore"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.ale.quickscore"
@@ -55,16 +53,16 @@ android {
     productFlavors {
         create("dev") {
             dimension = "environment"
-            // URL de prueba (Open Food Facts)
-            buildConfigField("String", "BASE_URL", "\"https://world.openfoodfacts.org/\"")
-            resValue("string", "app_name", "NutriCheck (DEV)")
+            // URL local para el emulador de Android (10.0.2.2 mapea al localhost de tu PC)
+            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8090/\"")
+            resValue("string", "app_name", "QuickScore (DEV)")
         }
 
         create("prod") {
             dimension = "environment"
-            // URL de producción
-            buildConfigField("String", "BASE_URL", "\"https://world.openfoodfacts.org/\"")
-            resValue("string", "app_name", "NutriCheck")
+            // Cambiar por la URL real cuando despliegues el backend
+            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8090/\"")
+            resValue("string", "app_name", "QuickScore")
         }
     }
 }
