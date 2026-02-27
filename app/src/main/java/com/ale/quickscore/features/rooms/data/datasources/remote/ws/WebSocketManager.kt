@@ -24,7 +24,7 @@ class WebSocketManager @Inject constructor(
 
     fun disconnect() = client.disconnect()
 
-    // Filtros por evento (Deben coincidir con WsEvents.kt y tu Go)
+    // Filtros por evento (Deben coincidir con WsEvents.kt y tu
     fun onScoreUpdate()    = messages.filter { it.event == WsEvents.SCORE_UPDATE }
     fun onSessionStarted() = messages.filter { it.event == WsEvents.SESSION_STARTED }
     fun onSessionEnded()   = messages.filter { it.event == WsEvents.SESSION_ENDED }
