@@ -9,6 +9,7 @@ import com.ale.quickscore.features.questions.domain.usecases.GetCurrentQuestionU
 import com.ale.quickscore.features.questions.domain.usecases.LaunchQuestionUseCase
 import com.ale.quickscore.features.questions.domain.usecases.SubmitAnswerUseCase
 import com.ale.quickscore.features.rooms.data.datasources.remote.websocket.WebSocketManager
+import com.ale.quickscore.features.rooms.domain.entities.RankingItem
 import com.ale.quickscore.features.rooms.domain.usecases.AddScoreUseCase
 import com.ale.quickscore.features.rooms.domain.usecases.CreateRoomUseCase
 import com.ale.quickscore.features.rooms.domain.usecases.EndRoomUseCase
@@ -180,6 +181,10 @@ class RoomViewModel @Inject constructor(
                         lastAnswerMessage = result.message
                     )
                 }
+                // Si la respuesta fue correcta, forzamos refresco del ranking
+                if (result.isCorrect) {
+                    loadRanking(currentRoomCode)
+                }
                 delay(3000)
                 _uiState.update { it.copy(lastAnswerCorrect = null, lastAnswerPoints = 0, lastAnswerMessage = "") }
             },
@@ -233,6 +238,14 @@ class RoomViewModel @Inject constructor(
         )
     }
 
+    private fun parseRankingItem(map: Map<String, Any>): RankingItem? {
+        return RankingItem(
+            userId = (map["user_id"] as? Number)?.toInt() ?: return null,
+            name = map["name"] as? String ?: "",
+            score = (map["score"] as? Number)?.toInt() ?: 0
+        )
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun connectWebSocket(roomCode: String) {
         wsManager.connect(roomCode)
@@ -242,9 +255,15 @@ class RoomViewModel @Inject constructor(
             .launchIn(viewModelScope)
 
         wsManager.onScoreUpdate()
-            .onEach {
-                loadRoom(roomCode)
-                loadRanking(roomCode)
+            .onEach { msg ->
+                // Tu backend Go envía el ranking completo en el payload de "score_update"
+                val payload = msg.payload as? List<Map<String, Any>>
+                if (payload != null) {
+                    val updatedRanking = payload.mapNotNull { parseRankingItem(it) }
+                    _uiState.update { it.copy(ranking = updatedRanking) }
+                } else {
+                    loadRanking(roomCode)
+                }
             }.launchIn(viewModelScope)
 
         wsManager.onSessionStarted()
@@ -316,6 +335,8 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onAnswerCorrect()
             .onEach {
+                // Cuando alguien acierta, esperamos medio segundo a que el backend procese el ranking
+                delay(500)
                 loadRanking(roomCode)
             }.launchIn(viewModelScope)
     }

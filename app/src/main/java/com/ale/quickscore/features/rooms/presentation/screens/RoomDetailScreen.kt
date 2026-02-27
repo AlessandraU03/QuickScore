@@ -1,5 +1,10 @@
 package com.ale.quickscore.features.rooms.presentation.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,7 +27,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ale.quickscore.features.questions.presentation.components.AnswerResultBanner
 import com.ale.quickscore.features.questions.presentation.screens.LaunchQuestionSheet
 import com.ale.quickscore.features.rooms.domain.entities.Participant
 import com.ale.quickscore.features.rooms.domain.entities.RankingItem
@@ -230,26 +235,19 @@ fun ParticipantQuestionView(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Timer
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Timer, null, tint = Color(0xFF7C4DFF), modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("TIEMPO RESTANTE", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, color = Color(0xFF49454F)))
-                }
-                Surface(color = Color(0xFFF8F9FE), shape = RoundedCornerShape(12.dp)) {
-                    Text("12s", modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), fontWeight = FontWeight.Bold, color = Color(0xFF7C4DFF))
-                }
+            // Resultado de la respuesta
+            AnimatedVisibility(
+                visible = uiState.lastAnswerCorrect != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                AnswerResultBanner(
+                    isCorrect = uiState.lastAnswerCorrect ?: false,
+                    pointsEarned = uiState.lastAnswerPoints,
+                    message = uiState.lastAnswerMessage,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            LinearProgressIndicator(
-                progress = { 0.6f },
-                modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
-                color = Color(0xFF7C4DFF),
-                trackColor = Color(0xFFF3EDFF)
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
 
             // Question Card
             Card(
@@ -304,11 +302,21 @@ fun ParticipantQuestionView(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C4DFF)),
                     enabled = !uiState.isAnswering && uiState.currentAnswer.isNotBlank()
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("ENVIAR RESPUESTA", fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(18.dp))
+                    if (uiState.isAnswering) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("ENVIAR RESPUESTA", fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(18.dp))
+                        }
                     }
+                }
+                
+                // Mostrar error si falla el envío
+                uiState.error?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(it, color = Color.Red, style = MaterialTheme.typography.bodySmall)
                 }
             }
 

@@ -7,14 +7,14 @@ import com.ale.quickscore.features.questions.domain.entities.Question
 
 fun QuestionDto.toDomain() = Question(
     id      = id ?: 0,
-    roomId  = room_id ?: 0,
+    roomId  = roomId ?: 0,
     text    = text ?: "",
     points  = points ?: 0,
     status  = status ?: ""
 )
 
 fun AnswerResultDto.toDomain() = AnswerResult(
-    isCorrect    = is_correct ?: false,
-    pointsEarned = points_earned ?: 0,
+    isCorrect    = isCorrect ?: false,
+    pointsEarned = pointsEarned ?: 0,
     message      = message ?: ""
 )

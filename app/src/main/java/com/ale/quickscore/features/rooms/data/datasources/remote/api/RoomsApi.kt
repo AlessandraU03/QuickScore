@@ -27,12 +27,12 @@ interface RoomsApi {
     @PATCH("rooms/{code}/end")
     suspend fun endRoom(@Path("code") code: String): Response<Map<String, String>>
 
-    @GET("rooms/{code}/ranking")
-    suspend fun getRanking(@Path("code") code: String): Response<List<RankingDto>>
-
     @POST("rooms/{code}/score")
     suspend fun addScore(
         @Path("code") code: String,
-        @Body body: AddPointsRequest
+        @Body request: AddPointsRequest
     ): Response<Map<String, String>>
+
+    @GET("rooms/{code}/ranking")
+    suspend fun getRanking(@Path("code") code: String): Response<List<RankingDto>>
 }
