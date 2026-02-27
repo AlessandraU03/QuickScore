@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
@@ -83,13 +82,7 @@ fun HomeParticipantScreen(
                 )
                 NavigationBarItem(
                     selected = false,
-                    onClick = { },
-                    icon = { Icon(Icons.Default.History, contentDescription = null) },
-                    label = { Text("Historial") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { },
+                    onClick = onLogout,
                     icon = { Icon(Icons.Default.Person, contentDescription = null) },
                     label = { Text("Perfil") }
                 )

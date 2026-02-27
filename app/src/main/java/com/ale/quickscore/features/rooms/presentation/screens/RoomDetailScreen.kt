@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -26,7 +25,6 @@ import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.Quiz
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -399,9 +397,8 @@ fun StaffSection() {
         Text("ANFITRIÓN Y STAFF", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
         Spacer(modifier = Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy((-12).dp)) {
-            repeat(3) { Surface(modifier = Modifier.size(48.dp), shape = CircleShape, border = androidx.compose.foundation.BorderStroke(2.dp, Color.White), color = Color(0xFFE0E0E0)) { } }
-            Surface(modifier = Modifier.size(48.dp), shape = CircleShape, border = androidx.compose.foundation.BorderStroke(2.dp, Color.White), color = Color(0xFFF3EDFF)) {
-                Box(contentAlignment = Alignment.Center) { Text("+2", color = Color(0xFF7C4DFF), fontWeight = FontWeight.Bold) }
+            repeat(1) { // Reducido a solo 1 icono (el host)
+                Surface(modifier = Modifier.size(48.dp), shape = CircleShape, border = androidx.compose.foundation.BorderStroke(2.dp, Color.White), color = Color(0xFFE0E0E0)) { }
             }
         }
     }
@@ -415,16 +412,8 @@ fun ParticipantDetailItem(participant: Participant, isHost: Boolean, viewModel: 
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(participant.name, fontWeight = FontWeight.Bold)
-                Text("Puntos: ${participant.score}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF79747E))
             }
             if (isHost) {
-                Surface(color = Color(0xFFF3F4F9), shape = RoundedCornerShape(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { viewModel.addScore(roomCode, participant.userId, -1) }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Remove, null, modifier = Modifier.size(16.dp)) }
-                        Text("${participant.score}", fontWeight = FontWeight.Bold)
-                        IconButton(onClick = { viewModel.addScore(roomCode, participant.userId, 1) }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp)) }
-                    }
-                }
                 IconButton(onClick = { viewModel.onKickRequest(participant.userId, participant.name) }) { Icon(Icons.Default.PersonRemove, null, tint = Color(0xFFE0E0E0)) }
             }
         }

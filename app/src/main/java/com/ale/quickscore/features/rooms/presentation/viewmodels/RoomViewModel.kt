@@ -51,7 +51,17 @@ class RoomViewModel @Inject constructor(
 
     private var currentRoomCode: String = ""
 
+    init {
+        // Al iniciar, verificamos si hay una sala guardada en el dispositivo
+        checkActiveRoom()
+    }
+
     fun getCurrentUserId(): Int = sessionManager.getUserId()
+
+    private fun checkActiveRoom() {
+        val savedCode = sessionManager.getCurrentRoomCode()
+        _uiState.update { it.copy(activeRoomCode = savedCode) }
+    }
 
     // ── Input ────────────────────────────────────────────────
 
@@ -75,6 +85,7 @@ class RoomViewModel @Inject constructor(
         _uiState.update { it.copy(isLoading = true, error = null) }
         createRoomUseCase().fold(
             onSuccess = { code ->
+                sessionManager.saveCurrentRoom(code) // Persistimos el código
                 currentRoomCode = code
                 loadRoom(code)
                 connectWebSocket(code)
@@ -83,6 +94,11 @@ class RoomViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
             }
         )
+    }
+
+    fun resumeRoom() {
+        val code = _uiState.value.activeRoomCode ?: return
+        initRoom(code)
     }
 
     fun joinRoom(code: String = _uiState.value.inputCode) = viewModelScope.launch {
@@ -120,9 +136,15 @@ class RoomViewModel @Inject constructor(
     }
 
     fun endRoom(roomCode: String) = viewModelScope.launch {
-        endRoomUseCase(roomCode).onFailure { e ->
-            _uiState.update { it.copy(error = e.message) }
-        }
+        endRoomUseCase(roomCode).fold(
+            onSuccess = {
+                sessionManager.clearRoom() // Limpiamos la persistencia al terminar
+                _uiState.update { it.copy(activeRoomCode = null, sessionEnded = true) }
+            },
+            onFailure = { e ->
+                _uiState.update { it.copy(error = e.message) }
+            }
+        )
     }
 
     fun addScore(roomCode: String, targetUserId: Int, delta: Int) = viewModelScope.launch {

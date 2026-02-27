@@ -6,7 +6,7 @@ plugins {
     alias(libs.plugins.secrets.gradle)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.devtools.ksp)
-    alias(libs.plugins.jetbrainsKotlinSerialization) // 1. Agregar este plugin
+    alias(libs.plugins.jetbrainsKotlinSerialization)
 }
 
 secrets {
@@ -17,9 +17,7 @@ secrets {
 
 android {
     namespace = "com.ale.quickscore"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.ale.quickscore"
@@ -55,16 +53,15 @@ android {
     productFlavors {
         create("dev") {
             dimension = "environment"
-            // URL de prueba (Open Food Facts)
-            buildConfigField("String", "BASE_URL", "\"https://world.openfoodfacts.org/\"")
-            resValue("string", "app_name", "NutriCheck (DEV)")
+            // Puerto corregido a 8090 según tu docker ps
+            buildConfigField("String", "BASE_URL", "\"http://44.197.84.143:8090/\"")
+            resValue("string", "app_name", "QuickScore (DEV)")
         }
 
         create("prod") {
             dimension = "environment"
-            // URL de producción
-            buildConfigField("String", "BASE_URL", "\"https://world.openfoodfacts.org/\"")
-            resValue("string", "app_name", "NutriCheck")
+            buildConfigField("String", "BASE_URL", "\"http://44.197.84.143:8090/\"")
+            resValue("string", "app_name", "QuickScore")
         }
     }
 }
@@ -91,16 +88,16 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui.text.google.fonts)
 
-    implementation(libs.androidx.lifecycle.viewmodel.compose)       // viewModel()
-    implementation(libs.com.squareup.retrofit2.retrofit)            // Retrofit
-    implementation(libs.com.squareup.retrofit2.converter.json)      // JSON
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.com.squareup.retrofit2.retrofit)
+    implementation(libs.com.squareup.retrofit2.converter.json)
     implementation(libs.okhttp3.logging.interceptor)
-    implementation(libs.io.coil.kt.coil.compose)                    // Coil
-    implementation(libs.androidx.navigation.compose)                // Navigation
-    implementation(libs.androidx.compose.material.icons.extended)   // Icons extendend
-    implementation(libs.hilt.android)                               // Implementación de Hilt
-    implementation(libs.hilt.navigation.compose)                    // Integración con Jetpack Compose
-    ksp(libs.hilt.compiler)                                         // KSP
+    implementation(libs.io.coil.kt.coil.compose)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.hilt.android)
+    implementation(libs.hilt.navigation.compose)
+    ksp(libs.hilt.compiler)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
