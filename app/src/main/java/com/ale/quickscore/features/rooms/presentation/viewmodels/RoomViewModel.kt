@@ -146,11 +146,12 @@ class RoomViewModel @Inject constructor(
     // ── Preguntas ─────────────────────────────────────────────
 
     fun launchQuestion(text: String, correctAnswer: String, points: Int) = viewModelScope.launch {
+        _uiState.update { it.copy(isLoading = true) }
         launchQuestionUseCase(currentRoomCode, text, correctAnswer, points).fold(
             onSuccess = { q -> 
-                _uiState.update { it.copy(activeQuestion = q, showLaunchSheet = false) } 
+                _uiState.update { it.copy(activeQuestion = q, showLaunchSheet = false, isLoading = false) } 
             },
-            onFailure = { e -> _uiState.update { it.copy(error = e.message) } }
+            onFailure = { e -> _uiState.update { it.copy(isLoading = false, error = e.message) } }
         )
     }
 
@@ -226,7 +227,7 @@ class RoomViewModel @Inject constructor(
     private fun parseOnlineUser(map: Map<String, Any>?): OnlineUser? {
         map ?: return null
         return OnlineUser(
-            userId = (map["user_id"] as? Double)?.toInt() ?: return null,
+            userId = (map["user_id"] as? Number)?.toInt() ?: return null,
             name   = map["name"] as? String ?: "",
             role   = map["role"] as? String ?: ""
         )
@@ -256,7 +257,8 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onParticipantConnected()
             .onEach { msg ->
-                parseOnlineUser(msg.payload)?.let { user ->
+                val payload = msg.payload as? Map<String, Any>
+                parseOnlineUser(payload)?.let { user ->
                     _uiState.update { state ->
                         val updated = state.onlineUsers.filterNot { it.userId == user.userId } + user
                         state.copy(onlineUsers = updated)
@@ -266,7 +268,8 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onParticipantDisconnected()
             .onEach { msg ->
-                val userId = (msg.payload?.get("user_id") as? Double)?.toInt()
+                val payload = msg.payload as? Map<String, Any>
+                val userId = (payload?.get("user_id") as? Number)?.toInt()
                 _uiState.update { state ->
                     state.copy(onlineUsers = state.onlineUsers.filterNot { it.userId == userId })
                 }
@@ -281,7 +284,8 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onParticipantKicked()
             .onEach { msg ->
-                val kickedId = (msg.payload?.get("user_id") as? Double)?.toInt()
+                val payload = msg.payload as? Map<String, Any>
+                val kickedId = (payload?.get("user_id") as? Number)?.toInt()
                 if (kickedId == sessionManager.getUserId()) {
                     _uiState.update { it.copy(sessionEnded = true, error = "Fuiste expulsado de la sala") }
                 } else {
@@ -293,14 +297,17 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onNewQuestion()
             .onEach { msg ->
-                val q = Question(
-                    id     = (msg.payload?.get("id") as? Double)?.toInt() ?: 0,
-                    roomId = (msg.payload?.get("room_id") as? Double)?.toInt() ?: 0,
-                    text   = msg.payload?.get("text") as? String ?: "",
-                    points = (msg.payload?.get("points") as? Double)?.toInt() ?: 0,
-                    status = "open"
-                )
-                _uiState.update { it.copy(activeQuestion = q) }
+                val payload = msg.payload as? Map<String, Any>
+                if (payload != null) {
+                    val q = Question(
+                        id     = (payload["id"] as? Number)?.toInt() ?: 0,
+                        roomId = (payload["room_id"] as? Number)?.toInt() ?: 0,
+                        text   = payload["text"] as? String ?: "",
+                        points = (payload["points"] as? Number)?.toInt() ?: 0,
+                        status = payload["status"] as? String ?: "open"
+                    )
+                    _uiState.update { it.copy(activeQuestion = q, showLaunchSheet = false) }
+                }
             }.launchIn(viewModelScope)
 
         wsManager.onQuestionClosed()
