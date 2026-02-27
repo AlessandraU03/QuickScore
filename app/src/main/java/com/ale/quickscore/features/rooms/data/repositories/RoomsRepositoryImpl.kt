@@ -16,7 +16,7 @@ import javax.inject.Inject
 
 class RoomsRepositoryImpl @Inject constructor(
     private val api: RoomsApi,
-    private val roomDao: RoomDao,      // Agregamos DAOs para persistencia
+    private val roomDao: RoomDao,
     private val rankingDao: RankingDao
 ) : RoomsRepository {
 
@@ -31,27 +31,36 @@ class RoomsRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getRoom(code: String): Result<Room> = runCatching {
-        // Estrategia: Intentar obtener de cache primero, luego actualizar desde servidor
         withContext(Dispatchers.IO) {
-            // 1. Obtener de cache primero (para respuesta rápida)
             val cachedRoom = roomDao.getRoomByCode(code)?.toDomain()
-            
             try {
-                // 2. Intentar actualizar desde servidor
                 val res = api.getRoom(code)
                 if (res.isSuccessful) {
                     val room = res.body()!!.toDomain()
-                    // 3. Guardar en cache
                     roomDao.insertRoom(room.toEntity())
                     room
                 } else {
-                    // Si falla el servidor pero tenemos cache, usarlo
                     cachedRoom ?: throw Exception("Error ${res.code()}")
                 }
             } catch (e: Exception) {
-                // Si hay error de red pero tenemos cache, usarlo
                 cachedRoom ?: throw e
             }
+        }
+    }
+
+    override suspend fun getCurrentRoom(): Result<Room> = runCatching {
+        val res = api.getCurrentRoom()
+        if (res.isSuccessful && res.body() != null) {
+            val room = res.body()!!.toDomain()
+            // Opcionalmente guardar en cache local
+            withContext(Dispatchers.IO) {
+                roomDao.insertRoom(room.toEntity())
+            }
+            room
+        } else if (res.code() == 204) {
+            throw NoSuchElementException("No hay sala activa")
+        } else {
+            throw Exception("Error ${res.code()}")
         }
     }
 
@@ -63,7 +72,6 @@ class RoomsRepositoryImpl @Inject constructor(
     override suspend fun startRoom(code: String): Result<Unit> = runCatching {
         val res = api.startRoom(code)
         if (res.isSuccessful) {
-            // Actualizar el estado en cache
             withContext(Dispatchers.IO) {
                 roomDao.updateRoomStatus(code, "active")
             }
@@ -75,7 +83,6 @@ class RoomsRepositoryImpl @Inject constructor(
     override suspend fun endRoom(code: String): Result<Unit> = runCatching {
         val res = api.endRoom(code)
         if (res.isSuccessful) {
-            // Actualizar el estado en cache
             withContext(Dispatchers.IO) {
                 roomDao.updateRoomStatus(code, "ended")
             }
@@ -86,24 +93,18 @@ class RoomsRepositoryImpl @Inject constructor(
 
     override suspend fun getRanking(code: String): Result<List<RankingItem>> = runCatching {
         withContext(Dispatchers.IO) {
-            // 1. Obtener de cache primero
             val cachedRanking = rankingDao.getRankingByRoom(code).map { it.toDomain() }
-            
             try {
-                // 2. Intentar actualizar desde servidor
                 val res = api.getRanking(code)
                 if (res.isSuccessful) {
                     val ranking = res.body()?.map { it.toDomain() } ?: emptyList()
-                    // 3. Guardar en cache
-                    rankingDao.deleteRankingByRoom(code) // Limpiar ranking anterior
+                    rankingDao.deleteRankingByRoom(code)
                     rankingDao.insertAllRankings(ranking.map { it.toEntity(code) })
                     ranking
                 } else {
-                    // Si falla el servidor pero tenemos cache, usarlo
                     cachedRanking.ifEmpty { throw Exception("Error ${res.code()}") }
                 }
             } catch (e: Exception) {
-                // Si hay error de red pero tenemos cache, usarlo
                 cachedRanking.ifEmpty { throw e }
             }
         }
@@ -116,6 +117,5 @@ class RoomsRepositoryImpl @Inject constructor(
     ): Result<Unit> = runCatching {
         val res = api.addScore(roomCode, AddPointsRequest(delta, roomCode, targetUserId))
         if (!res.isSuccessful) throw Exception("Error ${res.code()}")
-        // El ranking se actualizará cuando se llame a getRanking()
     }
 }

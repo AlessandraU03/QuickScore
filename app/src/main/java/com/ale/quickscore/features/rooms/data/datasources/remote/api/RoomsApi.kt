@@ -18,6 +18,9 @@ interface RoomsApi {
     @GET("rooms/{code}")
     suspend fun getRoom(@Path("code") code: String): Response<RoomResponse>
 
+    @GET("rooms/current")
+    suspend fun getCurrentRoom(): Response<RoomResponse>
+
     @POST("rooms/{code}/join")
     suspend fun joinRoom(@Path("code") code: String): Response<Map<String, String>>
 

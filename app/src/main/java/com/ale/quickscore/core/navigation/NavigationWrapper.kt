@@ -1,19 +1,23 @@
 package com.ale.quickscore.core.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.ale.quickscore.features.auth.presentation.screens.LoginScreen
 import com.ale.quickscore.features.auth.presentation.screens.RegisterScreen
+import com.ale.quickscore.features.auth.presentation.viewmodels.AuthViewModel
 import com.ale.quickscore.features.rooms.presentation.screens.HomeHostScreen
 import com.ale.quickscore.features.rooms.presentation.screens.HomeParticipantScreen
 import com.ale.quickscore.features.rooms.presentation.screens.LeaderboardScreen
 import com.ale.quickscore.features.rooms.presentation.screens.RoomDetailScreen
 
 @Composable
-fun NavigationWrapper() {
+fun NavigationWrapper(
+    authViewModel: AuthViewModel = hiltViewModel()
+) {
     val navController = rememberNavController()
 
     NavHost(navController = navController, startDestination = LoginRoute) {
@@ -48,6 +52,7 @@ fun NavigationWrapper() {
                         navController.navigate(RoomDetailRoute(roomCode, isHost = true))
                     },
                     onLogout = {
+                        authViewModel.logout()
                         navController.navigate(LoginRoute) {
                             popUpTo(0) { inclusive = true }
                         }
@@ -59,6 +64,7 @@ fun NavigationWrapper() {
                         navController.navigate(RoomDetailRoute(roomCode, isHost = false))
                     },
                     onLogout = {
+                        authViewModel.logout()
                         navController.navigate(LoginRoute) {
                             popUpTo(0) { inclusive = true }
                         }
@@ -76,7 +82,13 @@ fun NavigationWrapper() {
                         popUpTo(HomeRoute(route.isHost)) { inclusive = false }
                     }
                 },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onLogout = {
+                    authViewModel.logout()
+                    navController.navigate(LoginRoute) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
             )
         }
 

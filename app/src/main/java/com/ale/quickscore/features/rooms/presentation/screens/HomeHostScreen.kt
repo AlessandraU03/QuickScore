@@ -1,5 +1,6 @@
 package com.ale.quickscore.features.rooms.presentation.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -7,14 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.AddBox
-import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MeetingRoom
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SignalCellularAlt
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,8 +35,9 @@ fun HomeHostScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(uiState.room) {
-        uiState.room?.let { onNavigateToRoom(it.code) }
+    // Solo buscamos si hay sala al iniciar, pero NO navegamos automáticamente
+    LaunchedEffect(Unit) {
+        viewModel.checkLastActiveRoom()
     }
 
     Scaffold(
@@ -68,7 +63,7 @@ fun HomeHostScreen(
                 horizontalAlignment = Alignment.Start
             ) {
                 Text(
-                    text = "¡Bienvenido, Host!",
+                    text = "¡Hola, Profesor!",
                     style = MaterialTheme.typography.headlineLarge.copy(
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 32.sp,
@@ -76,7 +71,7 @@ fun HomeHostScreen(
                     )
                 )
                 Text(
-                    text = "¿Listo para comenzar una nueva partida?",
+                    text = "¿Qué deseas hacer hoy?",
                     style = MaterialTheme.typography.bodyLarge.copy(
                         color = Color(0xFF79747E)
                     )
@@ -85,12 +80,40 @@ fun HomeHostScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Main Action Card: Nueva Sala de Juego
+            // Retomar Sala Activa (Si existe)
+            // Esta tarjeta aparecerá si checkLastActiveRoom encontró algo
+            AnimatedVisibility(visible = uiState.room != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF7C4DFF))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(20.dp).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("SALA ACTIVA DETECTADA", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
+                            Text("#${uiState.room?.code}", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = { onNavigateToRoom(uiState.room!!.code) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF7C4DFF)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("RETOMAR")
+                        }
+                    }
+                }
+            }
+
+            // Main Action Card: Nueva Sala
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
@@ -121,7 +144,7 @@ fun HomeHostScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Configura los parámetros, invita a tus jugadores y empieza a trackear puntuaciones en tiempo real.",
+                        text = "Crea una nueva sesión para tus alumnos.",
                         style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF79747E)),
                         textAlign = TextAlign.Center
                     )
@@ -129,44 +152,26 @@ fun HomeHostScreen(
                     Spacer(modifier = Modifier.height(32.dp))
 
                     AuthButton(
-                        text = "Crear sala",
-                        onClick = { viewModel.createRoom() },
+                        text = "Crear nueva sala",
+                        onClick = { 
+                            // Al crear una nueva, sí queremos ir directamente a ella
+                            viewModel.createRoom { code ->
+                                onNavigateToRoom(code)
+                            }
+                        },
                         isLoading = uiState.isLoading
                     )
-
-                    if (uiState.isLoading) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "INICIANDO SERVIDOR DE JUEGO...",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                color = Color(0xFF7C4DFF),
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                        )
-                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Status Row
             StatusCard(
-                label = "ESTADO SERVIDOR",
-                value = "Operativo",
-                icon = Icons.Default.SignalCellularAlt,
+                label = "ESTADO DEL SISTEMA",
+                value = "En línea",
+                icon = Icons.Default.CloudDone,
                 iconColor = Color(0xFF4CAF50),
                 backgroundColor = Color(0xFFE8F5E9)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            StatusCard(
-                label = "JUGADORES ONLINE",
-                value = "1,240 activos",
-                icon = Icons.Default.Groups,
-                iconColor = Color(0xFF7C4DFF),
-                backgroundColor = Color(0xFFF3EDFF)
             )
 
             uiState.error?.let {
@@ -174,7 +179,6 @@ fun HomeHostScreen(
                 Text(
                     text = it,
                     color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center
                 )
             }
@@ -183,54 +187,20 @@ fun HomeHostScreen(
 }
 
 @Composable
-fun StatusCard(
-    label: String,
-    value: String,
-    icon: ImageVector,
-    iconColor: Color,
-    backgroundColor: Color
-) {
+fun StatusCard(label: String, value: String, icon: ImageVector, iconColor: Color, backgroundColor: Color) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(backgroundColor),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconColor,
-                    modifier = Modifier.size(28.dp)
-                )
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(backgroundColor), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = iconColor)
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        color = Color(0xFF79747E),
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFF1D1B20)
-                    )
-                )
+                Text(label, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -240,37 +210,10 @@ fun StatusCard(
 @Composable
 fun TopAppBarHost(onLogout: () -> Unit) {
     CenterAlignedTopAppBar(
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF7C4DFF)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AddBox,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "QuickScore",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                )
-            }
-        },
+        title = { Text("QuickScore Host", fontWeight = FontWeight.Bold) },
         actions = {
             IconButton(onClick = onLogout) {
-                Icon(
-                    imageVector = Icons.Default.AccountCircle,
-                    contentDescription = "Perfil",
-                    tint = Color(0xFF49454F),
-                    modifier = Modifier.size(30.dp)
-                )
+                Icon(Icons.Default.ExitToApp, "Salir")
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.White)
@@ -279,38 +222,8 @@ fun TopAppBarHost(onLogout: () -> Unit) {
 
 @Composable
 fun BottomNavigationHost() {
-    NavigationBar(
-        containerColor = Color.White,
-        tonalElevation = 8.dp
-    ) {
-        NavigationBarItem(
-            selected = true,
-            onClick = { },
-            icon = { Icon(Icons.Default.Home, contentDescription = null) },
-            label = { Text("Inicio") },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Color(0xFF7C4DFF),
-                selectedTextColor = Color(0xFF7C4DFF),
-                indicatorColor = Color(0xFFF3EDFF)
-            )
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = { },
-            icon = { Icon(Icons.Default.MeetingRoom, contentDescription = null) },
-            label = { Text("Salas") }
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = { },
-            icon = { Icon(Icons.Default.History, contentDescription = null) },
-            label = { Text("Historial") }
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = { },
-            icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-            label = { Text("Ajustes") }
-        )
+    NavigationBar(containerColor = Color.White) {
+        NavigationBarItem(selected = true, onClick = {}, icon = { Icon(Icons.Default.Home, null) }, label = { Text("Inicio") })
+        NavigationBarItem(selected = false, onClick = {}, icon = { Icon(Icons.Default.History, null) }, label = { Text("Historial") })
     }
 }
