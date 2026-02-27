@@ -63,25 +63,45 @@ fun HomeHostScreen(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header Greeting
-            Column(
+            // Header Greeting & Points
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.Start
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "¡Bienvenido, Host!",
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 32.sp,
-                        color = Color(0xFF1D1B20)
+                Column {
+                    Text(
+                        text = "¡Bienvenido, ${viewModel.getCurrentUserName()}!",
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 32.sp,
+                            color = Color(0xFF1D1B20)
+                        )
                     )
-                )
-                Text(
-                    text = "¿Listo para comenzar una nueva partida?",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        color = Color(0xFF79747E)
+                    Text(
+                        text = "¿Listo para una nueva partida?",
+                        style = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFF79747E))
                     )
-                )
+                }
+
+                // Tarjeta de puntos del Host
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF3EDFF))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("PUNTOS", style = MaterialTheme.typography.labelSmall, color = Color(0xFF7C4DFF))
+                        Text(
+                            text = "${uiState.ranking.find { it.userId == viewModel.getCurrentUserId() }?.score ?: 0}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF7C4DFF)
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(32.dp))

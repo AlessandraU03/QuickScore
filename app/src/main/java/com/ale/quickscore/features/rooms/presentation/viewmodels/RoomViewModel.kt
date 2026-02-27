@@ -57,6 +57,7 @@ class RoomViewModel @Inject constructor(
     }
 
     fun getCurrentUserId(): Int = sessionManager.getUserId()
+    fun getCurrentUserName(): String = sessionManager.getUserName()
 
     private fun checkActiveRoom() {
         val savedCode = sessionManager.getCurrentRoomCode()

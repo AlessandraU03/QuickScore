@@ -153,20 +153,18 @@ fun RoomManagementView(
             item { StaffSection() }
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    val participantCount = uiState.onlineUsers.size.takeIf { it > 0 } ?: uiState.room?.participants?.size ?: 0
-                    Text("PARTICIPANTES ($participantCount)", fontWeight = FontWeight.Bold)
+                    val hostId = uiState.room?.hostId
+                    val studentCount = uiState.ranking.count { it.userId != hostId }
+                    Text("PARTICIPANTES ($studentCount)", fontWeight = FontWeight.Bold)
                     if (isHost) Text("Gestionar", color = Color(0xFF79747E), modifier = Modifier.clickable { })
                 }
             }
             
-            val displayParticipants = if (uiState.onlineUsers.isNotEmpty()) {
-                uiState.onlineUsers.map { onlineUser ->
-                    val score = uiState.ranking.find { it.userId == onlineUser.userId }?.score ?: 0
-                    Participant(onlineUser.userId, onlineUser.name, score)
-                } 
-            } else {
-                uiState.room?.participants ?: emptyList()
-            }
+            val hostId = uiState.room?.hostId
+            // Priorizamos la lista de ranking ya que es la fuente de verdad de puntos y participantes del juego
+            val displayParticipants = uiState.ranking
+                .filter { it.userId != hostId }
+                .map { Participant(it.userId, it.name, it.score) }
 
             items(displayParticipants) { participant ->
                 ParticipantDetailItem(participant, isHost, viewModel, roomCode)
@@ -330,14 +328,17 @@ fun ParticipantQuestionView(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Ranking en Vivo", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
                 }
-                Text("${uiState.onlineUsers.size} JUGADORES", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF79747E)))
+                val hostId = uiState.room?.hostId
+                Text("${uiState.ranking.count { it.userId != hostId }} JUGADORES", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF79747E)))
             }
             
             Spacer(modifier = Modifier.height(16.dp))
             
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                itemsIndexed(uiState.ranking.take(3)) { index, item ->
-                    LiveRankingItem(index + 1, item, isMe = item.userId == viewModel.getCurrentUserId())
+                val hostId = uiState.room?.hostId
+                val filteredRanking = uiState.ranking.filter { it.userId != hostId }
+                itemsIndexed(filteredRanking.take(3)) { index, item ->
+                    LiveRankingItem(index + 1, item, isMe = item.userId == viewModel.getCurrentUserId(), viewModel = viewModel)
                 }
             }
         }
@@ -345,7 +346,7 @@ fun ParticipantQuestionView(
 }
 
 @Composable
-fun LiveRankingItem(pos: Int, item: RankingItem, isMe: Boolean) {
+fun LiveRankingItem(pos: Int, item: RankingItem, isMe: Boolean, viewModel: RoomViewModel) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -358,7 +359,8 @@ fun LiveRankingItem(pos: Int, item: RankingItem, isMe: Boolean) {
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(if (isMe) "Tú (${item.name})" else item.name, fontWeight = FontWeight.Bold)
+                val nameToShow = if (isMe) viewModel.getCurrentUserName() else item.name
+                Text(if (isMe) "Tú ($nameToShow)" else nameToShow, fontWeight = FontWeight.Bold)
                 if (isMe) Text("RACHA: 3 🔥", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFFFF9800), fontWeight = FontWeight.Bold))
             }
             Text("${item.score} pts", fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C4DFF))
@@ -417,11 +419,12 @@ fun ParticipantDetailItem(participant: Participant, isHost: Boolean, viewModel: 
         colors = CardDefaults.cardColors(containerColor = if (isMe) Color(0xFFF3EDFF) else Color.White), 
         border = if (isMe) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF7C4DFF)) else androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF3F4F9))
     ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(modifier = Modifier.size(48.dp), shape = CircleShape, color = Color(0xFFFFF9C4)) { }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = if (isMe) "Tú (${participant.name})" else participant.name, fontWeight = FontWeight.Bold)
+                val nameToShow = if (isMe) viewModel.getCurrentUserName() else participant.name
+                Text(text = if (isMe) "Tú ($nameToShow)" else nameToShow, fontWeight = FontWeight.Bold)
                 Text(
                     text = "${participant.score} pts",
                     style = MaterialTheme.typography.bodySmall,
