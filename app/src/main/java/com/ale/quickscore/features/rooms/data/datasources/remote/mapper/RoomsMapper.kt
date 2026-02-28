@@ -9,19 +9,19 @@ import com.ale.quickscore.features.rooms.domain.entities.Room
 
 fun RoomResponse.toDomain(): Room = Room(
     code = code ?: "",
-    hostId = host_id ?: 0,
+    hostId = hostId ?: 0,
     status = status ?: "",
     participants = participants?.map { it.toDomain() } ?: emptyList()
 )
 
 fun ParticipantDto.toDomain(): Participant = Participant(
-    userId = user_id ?: 0,
-    name = displayName, // Usamos la propiedad auxiliar que combina user_name y name
-    score = score ?: 0
+    userId = userId ?: 0,
+    name = displayName,
+    score = points ?: 0
 )
 
 fun RankingDto.toDomain(): RankingItem = RankingItem(
-    userId = user_id ?: 0,
-    name = name ?: "",
-    score = score ?: 0
+    userId = userId ?: 0,
+    name = userName ?: "",
+    score = points ?: 0
 )

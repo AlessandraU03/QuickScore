@@ -1,7 +1,11 @@
 package com.ale.quickscore.features.rooms.presentation.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,7 +16,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Leaderboard
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonRemove
+import androidx.compose.material.icons.filled.Quiz
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,7 +50,8 @@ import com.ale.quickscore.features.rooms.presentation.viewmodels.RoomViewModel
 fun RoomDetailScreen(
     roomCode: String,
     onSessionEnded: (String) -> Unit,
-    onBack: () -> Unit,
+    onNavigateToHome: () -> Unit,
+    onNavigateToRanking: () -> Unit,
     viewModel: RoomViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -71,11 +85,24 @@ fun RoomDetailScreen(
         )
     }
 
-    // Si hay una pregunta activa, mostrar la vista de pregunta para ambos (o adaptada)
+    // Decidir qué vista mostrar: Si hay pregunta activa, todos ven la vista de pregunta
     if (uiState.activeQuestion != null) {
-        QuestionView(isHost, uiState, viewModel, onBack)
+        ParticipantQuestionView(
+            uiState = uiState,
+            viewModel = viewModel,
+            onNavigateToHome = onNavigateToHome,
+            onNavigateToRanking = onNavigateToRanking,
+            isHost = isHost
+        )
     } else {
-        RoomManagementView(roomCode, isHost, uiState, viewModel, onBack)
+        RoomManagementView(
+            roomCode = roomCode,
+            isHost = isHost,
+            uiState = uiState,
+            viewModel = viewModel,
+            onNavigateToHome = onNavigateToHome,
+            onNavigateToRanking = onNavigateToRanking
+        )
     }
 
     if (uiState.showLaunchSheet) {
@@ -93,21 +120,26 @@ fun RoomManagementView(
     isHost: Boolean,
     uiState: RoomUIState,
     viewModel: RoomViewModel,
-    onBack: () -> Unit
+    onNavigateToHome: () -> Unit,
+    onNavigateToRanking: () -> Unit
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Detalle de Sala", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                    IconButton(onClick = onNavigateToHome) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                 },
                 actions = { ConnectionStatusBadge(isConnected = uiState.isConnected) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
         bottomBar = {
-            BottomNavigationBar(selectedItem = "SALAS")
+            BottomNavigationBar(
+                selectedItem = "SALAS",
+                onHomeClick = onNavigateToHome,
+                onRankingClick = onNavigateToRanking
+            )
         },
         containerColor = Color(0xFFF8F9FE)
     ) { padding ->
@@ -120,13 +152,23 @@ fun RoomManagementView(
             item { StaffSection() }
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("PARTICIPANTES (${uiState.room?.participants?.size ?: 0})", fontWeight = FontWeight.Bold)
+                    val hostId = uiState.room?.hostId
+                    val studentCount = uiState.ranking.count { it.userId != hostId }
+                    Text("PARTICIPANTES ($studentCount)", fontWeight = FontWeight.Bold)
                     if (isHost) Text("Gestionar", color = Color(0xFF79747E), modifier = Modifier.clickable { })
                 }
             }
-            items(uiState.room?.participants ?: emptyList()) { participant ->
+            
+            val hostId = uiState.room?.hostId
+            // Priorizamos la lista de ranking ya que es la fuente de verdad de puntos y participantes del juego
+            val displayParticipants = uiState.ranking
+                .filter { it.userId != hostId }
+                .map { Participant(it.userId, it.name, it.score) }
+
+            items(displayParticipants) { participant ->
                 ParticipantDetailItem(participant, isHost, viewModel, roomCode)
             }
+            
             item {
                 if (isHost) {
                     Button(
@@ -153,7 +195,9 @@ fun QuestionView(
     isHost: Boolean,
     uiState: RoomUIState,
     viewModel: RoomViewModel,
-    onBack: () -> Unit
+    onNavigateToHome: () -> Unit,
+    onNavigateToRanking: () -> Unit,
+    isHost: Boolean
 ) {
     Scaffold(
         topBar = {
@@ -165,23 +209,22 @@ fun QuestionView(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack, modifier = Modifier.background(Color(0xFFF3EDFF), CircleShape)) {
+                    IconButton(onClick = onNavigateToHome, modifier = Modifier.background(Color(0xFFF3EDFF), CircleShape)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color(0xFF7C4DFF))
                     }
                 },
                 actions = {
-                    if (isHost) {
-                        IconButton(onClick = { viewModel.closeQuestion() }) {
-                            Icon(Icons.Default.Close, "Cerrar Pregunta", tint = Color.Red)
-                        }
-                    }
-                    IconButton(onClick = { }) { Icon(Icons.Default.Info, null, tint = Color(0xFF7C4DFF)) }
+                    IconButton(onClick = { }) { Icon(Icons.Default.Info, null, tint = Color(0xFF7C4DFF) ) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
         bottomBar = {
-            BottomNavigationBar(selectedItem = "JUEGO")
+            BottomNavigationBar(
+                selectedItem = "JUEGO",
+                onHomeClick = onNavigateToHome,
+                onRankingClick = onNavigateToRanking
+            )
         },
         containerColor = Color.White
     ) { padding ->
@@ -191,26 +234,19 @@ fun QuestionView(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Timer
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Timer, null, tint = Color(0xFF7C4DFF), modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("TIEMPO RESTANTE", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, color = Color(0xFF49454F)))
-                }
-                Surface(color = Color(0xFFF8F9FE), shape = RoundedCornerShape(12.dp)) {
-                    Text("12s", modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), fontWeight = FontWeight.Bold, color = Color(0xFF7C4DFF))
-                }
+            // Resultado de la respuesta
+            AnimatedVisibility(
+                visible = uiState.lastAnswerCorrect != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                AnswerResultBanner(
+                    isCorrect = uiState.lastAnswerCorrect ?: false,
+                    pointsEarned = uiState.lastAnswerPoints,
+                    message = uiState.lastAnswerMessage,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            LinearProgressIndicator(
-                progress = { 0.6f },
-                modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
-                color = Color(0xFF7C4DFF),
-                trackColor = Color(0xFFF3EDFF)
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
 
             // Question Card
             Card(
@@ -228,8 +264,18 @@ fun QuestionView(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            if (!isHost) {
-                // Answer Input for Participant
+            if (isHost) {
+                // VISTA DEL HOST: Botón para cerrar pregunta
+                Button(
+                    onClick = { viewModel.closeQuestion() },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350))
+                ) {
+                    Text("FINALIZAR PREGUNTA", fontWeight = FontWeight.Bold)
+                }
+            } else {
+                // VISTA DEL PARTICIPANTE: Answer Input
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text("TU RESPUESTA", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, color = Color(0xFF49454F)))
                     Spacer(modifier = Modifier.height(12.dp))
@@ -255,37 +301,21 @@ fun QuestionView(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C4DFF)),
                     enabled = !uiState.isAnswering && uiState.currentAnswer.isNotBlank()
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("ENVIAR RESPUESTA", fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(18.dp))
-                    }
-                }
-            } else {
-                // Host specific view while question is active
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF3EDFF))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Groups, contentDescription = null, tint = Color(0xFF7C4DFF), modifier = Modifier.size(32.dp))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Los estudiantes están respondiendo...", fontWeight = FontWeight.Bold, color = Color(0xFF7C4DFF))
-                        Text("${uiState.onlineUsers.size - 1} participantes activos", style = MaterialTheme.typography.bodySmall)
+                    if (uiState.isAnswering) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("ENVIAR RESPUESTA", fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(18.dp))
+                        }
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                OutlinedButton(
-                    onClick = { viewModel.closeQuestion() },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.Red)
-                ) {
-                    Text("FINALIZAR PREGUNTA AHORA", fontWeight = FontWeight.Bold)
+                // Mostrar error si falla el envío
+                uiState.error?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(it, color = Color.Red, style = MaterialTheme.typography.bodySmall)
                 }
             }
 
@@ -298,14 +328,17 @@ fun QuestionView(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Ranking en Vivo", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
                 }
-                Text("${uiState.onlineUsers.size} JUGADORES", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF79747E)))
+                val hostId = uiState.room?.hostId
+                Text("${uiState.ranking.count { it.userId != hostId }} JUGADORES", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF79747E)))
             }
             
             Spacer(modifier = Modifier.height(16.dp))
             
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                itemsIndexed(uiState.ranking.take(3)) { index, item ->
-                    LiveRankingItem(index + 1, item, isMe = item.userId == viewModel.getCurrentUserId())
+                val hostId = uiState.room?.hostId
+                val filteredRanking = uiState.ranking.filter { it.userId != hostId }
+                itemsIndexed(filteredRanking.take(3)) { index, item ->
+                    LiveRankingItem(index + 1, item, isMe = item.userId == viewModel.getCurrentUserId(), viewModel = viewModel)
                 }
             }
         }
@@ -313,7 +346,7 @@ fun QuestionView(
 }
 
 @Composable
-fun LiveRankingItem(pos: Int, item: RankingItem, isMe: Boolean) {
+fun LiveRankingItem(pos: Int, item: RankingItem, isMe: Boolean, viewModel: RoomViewModel) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -326,7 +359,8 @@ fun LiveRankingItem(pos: Int, item: RankingItem, isMe: Boolean) {
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(if (isMe) "Tú (${item.name})" else item.name, fontWeight = FontWeight.Bold)
+                val nameToShow = if (isMe) viewModel.getCurrentUserName() else item.name
+                Text(if (isMe) "Tú ($nameToShow)" else nameToShow, fontWeight = FontWeight.Bold)
                 if (isMe) Text("RACHA: 3 🔥", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFFFF9800), fontWeight = FontWeight.Bold))
             }
             Text("${item.score} pts", fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C4DFF))
@@ -368,9 +402,8 @@ fun StaffSection() {
         Text("ANFITRIÓN Y STAFF", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
         Spacer(modifier = Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy((-12).dp)) {
-            repeat(3) { Surface(modifier = Modifier.size(48.dp), shape = CircleShape, border = androidx.compose.foundation.BorderStroke(2.dp, Color.White), color = Color(0xFFE0E0E0)) { } }
-            Surface(modifier = Modifier.size(48.dp), shape = CircleShape, border = androidx.compose.foundation.BorderStroke(2.dp, Color.White), color = Color(0xFFF3EDFF)) {
-                Box(contentAlignment = Alignment.Center) { Text("+2", color = Color(0xFF7C4DFF), fontWeight = FontWeight.Bold) }
+            repeat(1) { // Reducido a solo 1 icono (el host)
+                Surface(modifier = Modifier.size(48.dp), shape = CircleShape, border = androidx.compose.foundation.BorderStroke(2.dp, Color.White), color = Color(0xFFE0E0E0)) { }
             }
         }
     }
@@ -378,22 +411,28 @@ fun StaffSection() {
 
 @Composable
 fun ParticipantDetailItem(participant: Participant, isHost: Boolean, viewModel: RoomViewModel, roomCode: String) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF3F4F9))) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+    val isMe = participant.userId == viewModel.getCurrentUserId()
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(), 
+        shape = RoundedCornerShape(24.dp), 
+        colors = CardDefaults.cardColors(containerColor = if (isMe) Color(0xFFF3EDFF) else Color.White), 
+        border = if (isMe) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF7C4DFF)) else androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF3F4F9))
+    ) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(modifier = Modifier.size(48.dp), shape = CircleShape, color = Color(0xFFFFF9C4)) { }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(participant.name, fontWeight = FontWeight.Bold)
-                Text("Puntos: ${participant.score}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF79747E))
+                val nameToShow = if (isMe) viewModel.getCurrentUserName() else participant.name
+                Text(text = if (isMe) "Tú ($nameToShow)" else nameToShow, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "${participant.score} pts",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF7C4DFF),
+                    fontWeight = FontWeight.Bold
+                )
             }
-            if (isHost) {
-                Surface(color = Color(0xFFF3F4F9), shape = RoundedCornerShape(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { viewModel.addScore(roomCode, participant.userId, -1) }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Remove, null, modifier = Modifier.size(16.dp)) }
-                        Text("${participant.score}", fontWeight = FontWeight.Bold)
-                        IconButton(onClick = { viewModel.addScore(roomCode, participant.userId, 1) }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp)) }
-                    }
-                }
+            if (isHost && !isMe) {
                 IconButton(onClick = { viewModel.onKickRequest(participant.userId, participant.name) }) { Icon(Icons.Default.PersonRemove, null, tint = Color(0xFFE0E0E0)) }
             }
         }
@@ -401,16 +440,29 @@ fun ParticipantDetailItem(participant: Participant, isHost: Boolean, viewModel: 
 }
 
 @Composable
-fun BottomNavigationBar(selectedItem: String) {
+fun BottomNavigationBar(
+    selectedItem: String,
+    onHomeClick: () -> Unit,
+    onRankingClick: () -> Unit
+) {
     NavigationBar(containerColor = Color.White) {
-        val items = listOf("JUEGO" to Icons.Default.Quiz, "RANKING" to Icons.Default.EmojiEvents, "CHAT" to Icons.Default.Chat, "PERFIL" to Icons.Default.Person)
-        items.forEach { (label, icon) ->
+        val items = listOf(
+            Triple("SALAS", Icons.Default.Home, onHomeClick),
+            Triple("JUEGO", Icons.Default.Quiz, { }),
+            Triple("RANKING", Icons.Default.EmojiEvents, onRankingClick),
+            Triple("PERFIL", Icons.Default.Person, { })
+        )
+        items.forEach { (label, icon, onClick) ->
             NavigationBarItem(
                 selected = selectedItem == label,
-                onClick = { },
+                onClick = onClick,
                 icon = { Icon(icon, null) },
                 label = { Text(label) },
-                colors = NavigationBarItemDefaults.colors(selectedIconColor = Color(0xFF7C4DFF), selectedTextColor = Color(0xFF7C4DFF), indicatorColor = Color(0xFFF3EDFF))
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = Color(0xFF7C4DFF),
+                    selectedTextColor = Color(0xFF7C4DFF),
+                    indicatorColor = Color(0xFFF3EDFF)
+                )
             )
         }
     }

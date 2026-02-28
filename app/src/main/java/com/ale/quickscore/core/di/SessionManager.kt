@@ -28,6 +28,20 @@ class SessionManager @Inject constructor(
     fun saveToken(token: String) {
         prefs.edit().putString("auth_token", token).apply()
     }
+
+    // Funciones para persistir la sala actual
+    fun saveCurrentRoom(code: String) {
+        prefs.edit().putString("current_room_code", code).apply()
+    }
+
+    fun getCurrentRoomCode(): String? {
+        return prefs.getString("current_room_code", null)
+    }
+
+    fun clearRoom() {
+        prefs.edit().remove("current_room_code").apply()
+    }
+
     fun clear() {
         prefs.edit().clear().apply()
     }

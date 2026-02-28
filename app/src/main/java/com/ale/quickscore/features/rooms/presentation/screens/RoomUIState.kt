@@ -19,6 +19,9 @@ data class RoomUIState(
     val sessionEnded: Boolean = false,
     val error: String? = null,
     
+    // Nueva propiedad para salas persistentes
+    val activeRoomCode: String? = null,
+    
     // Presencia en tiempo real
     val onlineUsers: List<OnlineUser> = emptyList(),
     
@@ -28,7 +31,7 @@ data class RoomUIState(
     // Pregunta activa
     val activeQuestion: Question? = null,
     val isAnswering: Boolean = false,
-    val currentAnswer: String = "", // Added for participant answer input
+    val currentAnswer: String = "",
 
     // Resultado de la última respuesta enviada
     val lastAnswerCorrect: Boolean? = null,

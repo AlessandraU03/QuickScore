@@ -43,18 +43,15 @@ class RoomsRepositoryImpl @Inject constructor(
         if (!res.isSuccessful) throw Exception("Error ${res.code()}")
     }
 
+    override suspend fun addScore(roomCode: String, targetUserId: Int, delta: Int): Result<Unit> = runCatching {
+        val request = AddPointsRequest(delta = delta, roomCode = roomCode, targetUserId = targetUserId)
+        val res = api.addScore(roomCode, request)
+        if (!res.isSuccessful) throw Exception("Error ${res.code()}")
+    }
+
     override suspend fun getRanking(code: String): Result<List<RankingItem>> = runCatching {
         val res = api.getRanking(code)
         if (!res.isSuccessful) throw Exception("Error ${res.code()}")
         res.body()?.map { it.toDomain() } ?: emptyList()
-    }
-
-    override suspend fun addScore(
-        roomCode: String,
-        targetUserId: Int,
-        delta: Int
-    ): Result<Unit> = runCatching {
-        val res = api.addScore(roomCode, AddPointsRequest(delta, roomCode, targetUserId))
-        if (!res.isSuccessful) throw Exception("Error ${res.code()}")
     }
 }

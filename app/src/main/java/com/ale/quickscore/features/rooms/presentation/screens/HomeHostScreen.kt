@@ -9,12 +9,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AddBox
-import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MeetingRoom
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -50,7 +51,7 @@ fun HomeHostScreen(
             TopAppBarHost(onLogout = onLogout)
         },
         bottomBar = {
-            BottomNavigationHost()
+            BottomNavigationHost(onLogout = onLogout)
         },
         containerColor = Color(0xFFF8F9FE)
     ) { paddingValues ->
@@ -62,28 +63,86 @@ fun HomeHostScreen(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header Greeting
-            Column(
+            // Header Greeting & Points
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.Start
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "¡Bienvenido, Host!",
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 32.sp,
-                        color = Color(0xFF1D1B20)
+                Column {
+                    Text(
+                        text = "¡Bienvenido, ${viewModel.getCurrentUserName()}!",
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 32.sp,
+                            color = Color(0xFF1D1B20)
+                        )
                     )
-                )
-                Text(
-                    text = "¿Listo para comenzar una nueva partida?",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        color = Color(0xFF79747E)
+                    Text(
+                        text = "¿Listo para una nueva partida?",
+                        style = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFF79747E))
                     )
-                )
+                }
+
+                // Tarjeta de puntos del Host
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF3EDFF))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("PUNTOS", style = MaterialTheme.typography.labelSmall, color = Color(0xFF7C4DFF))
+                        Text(
+                            text = "${uiState.ranking.find { it.userId == viewModel.getCurrentUserId() }?.score ?: 0}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF7C4DFF)
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
+
+            // NUEVA SECCIÓN: Continuar Sala Activa
+            if (uiState.activeRoomCode != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF3EDFF)),
+                    border = androidx.compose.foundation.BorderStroke(2.dp, Color(0xFF7C4DFF))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF7C4DFF)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.PlayArrow, null, tint = Color.White)
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Tienes una sala activa", fontWeight = FontWeight.Bold, color = Color(0xFF7C4DFF))
+                            Text("Código: #${uiState.activeRoomCode}", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Button(
+                            onClick = { viewModel.resumeRoom() },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C4DFF))
+                        ) {
+                            Text("Continuar")
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
             // Main Action Card: Nueva Sala de Juego
             Card(
@@ -148,27 +207,6 @@ fun HomeHostScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Status Row
-            StatusCard(
-                label = "ESTADO SERVIDOR",
-                value = "Operativo",
-                icon = Icons.Default.SignalCellularAlt,
-                iconColor = Color(0xFF4CAF50),
-                backgroundColor = Color(0xFFE8F5E9)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            StatusCard(
-                label = "JUGADORES ONLINE",
-                value = "1,240 activos",
-                icon = Icons.Default.Groups,
-                iconColor = Color(0xFF7C4DFF),
-                backgroundColor = Color(0xFFF3EDFF)
-            )
-
             uiState.error?.let {
                 Spacer(modifier = Modifier.height(24.dp))
                 Text(
@@ -176,60 +214,6 @@ fun HomeHostScreen(
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun StatusCard(
-    label: String,
-    value: String,
-    icon: ImageVector,
-    iconColor: Color,
-    backgroundColor: Color
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(backgroundColor),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconColor,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        color = Color(0xFF79747E),
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFF1D1B20)
-                    )
                 )
             }
         }
@@ -278,7 +262,7 @@ fun TopAppBarHost(onLogout: () -> Unit) {
 }
 
 @Composable
-fun BottomNavigationHost() {
+fun BottomNavigationHost(onLogout: () -> Unit) {
     NavigationBar(
         containerColor = Color.White,
         tonalElevation = 8.dp
@@ -287,7 +271,7 @@ fun BottomNavigationHost() {
             selected = true,
             onClick = { },
             icon = { Icon(Icons.Default.Home, contentDescription = null) },
-            label = { Text("Inicio") },
+            label = { Text("SALAS") },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Color(0xFF7C4DFF),
                 selectedTextColor = Color(0xFF7C4DFF),
@@ -297,20 +281,20 @@ fun BottomNavigationHost() {
         NavigationBarItem(
             selected = false,
             onClick = { },
-            icon = { Icon(Icons.Default.MeetingRoom, contentDescription = null) },
-            label = { Text("Salas") }
+            icon = { Icon(Icons.Default.Quiz, contentDescription = null) },
+            label = { Text("JUEGO") }
         )
         NavigationBarItem(
             selected = false,
             onClick = { },
-            icon = { Icon(Icons.Default.History, contentDescription = null) },
-            label = { Text("Historial") }
+            icon = { Icon(Icons.Default.EmojiEvents, contentDescription = null) },
+            label = { Text("RANKING") }
         )
         NavigationBarItem(
             selected = false,
-            onClick = { },
-            icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-            label = { Text("Ajustes") }
+            onClick = onLogout,
+            icon = { Icon(Icons.Default.Person, contentDescription = null) },
+            label = { Text("PERFIL") }
         )
     }
 }

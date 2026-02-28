@@ -9,6 +9,6 @@ interface RoomsRepository {
     suspend fun joinRoom(code: String): Result<Unit>
     suspend fun startRoom(code: String): Result<Unit>
     suspend fun endRoom(code: String): Result<Unit>
-    suspend fun getRanking(code: String): Result<List<RankingItem>>
     suspend fun addScore(roomCode: String, targetUserId: Int, delta: Int): Result<Unit>
+    suspend fun getRanking(code: String): Result<List<RankingItem>>
 }
