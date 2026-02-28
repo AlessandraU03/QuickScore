@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.ale.quickscore.features.questions.presentation.components.AnswerResultBanner
 import com.ale.quickscore.features.questions.presentation.screens.LaunchQuestionSheet
 import com.ale.quickscore.features.rooms.domain.entities.Participant
 import com.ale.quickscore.features.rooms.domain.entities.RankingItem
@@ -192,7 +191,8 @@ fun RoomManagementView(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ParticipantQuestionView(
+fun QuestionView(
+    isHost: Boolean,
     uiState: RoomUIState,
     viewModel: RoomViewModel,
     onNavigateToHome: () -> Unit,

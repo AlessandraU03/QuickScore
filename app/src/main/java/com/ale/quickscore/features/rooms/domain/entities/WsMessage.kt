@@ -1,9 +1,11 @@
 package com.ale.quickscore.features.rooms.domain.entities
 
+import com.google.gson.JsonElement
+
 data class WsMessage(
     val event: String,
     val room: String,
-    val payload: Map<String, Any>?
+    val payload: JsonElement?
 )
 
 object WsEvents {

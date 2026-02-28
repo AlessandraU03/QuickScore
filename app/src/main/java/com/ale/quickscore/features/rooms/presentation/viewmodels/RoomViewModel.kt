@@ -19,6 +19,7 @@ import com.ale.quickscore.features.rooms.domain.usecases.JoinRoomUseCase
 import com.ale.quickscore.features.rooms.domain.usecases.StartRoomUseCase
 import com.ale.quickscore.features.rooms.presentation.screens.OnlineUser
 import com.ale.quickscore.features.rooms.presentation.screens.RoomUIState
+import com.google.gson.JsonElement
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,7 +78,11 @@ class RoomViewModel @Inject constructor(
     // ── UI Control ───────────────────────────────────────────
 
     fun toggleLaunchSheet(show: Boolean) {
-        _uiState.update { it.copy(showLaunchSheet = show) }
+        if (show && !_uiState.value.sessionStarted) {
+            _uiState.update { it.copy(error = "Primero debes iniciar la sesión") }
+            return
+        }
+        _uiState.update { it.copy(showLaunchSheet = show, error = null) }
     }
 
     // ── Sala ────────────────────────────────────────────────
@@ -131,9 +136,15 @@ class RoomViewModel @Inject constructor(
     }
 
     fun startRoom(roomCode: String) = viewModelScope.launch {
-        startRoomUseCase(roomCode).onFailure { e ->
-            _uiState.update { it.copy(error = e.message) }
-        }
+        _uiState.update { it.copy(isLoading = true, error = null) }
+        startRoomUseCase(roomCode).fold(
+            onSuccess = {
+                _uiState.update { it.copy(isLoading = false, sessionStarted = true) }
+            },
+            onFailure = { e ->
+                _uiState.update { it.copy(isLoading = false, error = e.message) }
+            }
+        )
     }
 
     fun endRoom(roomCode: String) = viewModelScope.launch {
@@ -149,7 +160,9 @@ class RoomViewModel @Inject constructor(
     }
 
     fun addScore(roomCode: String, targetUserId: Int, delta: Int) = viewModelScope.launch {
-        addScoreUseCase(roomCode, targetUserId, delta)
+        addScoreUseCase(roomCode, targetUserId, delta).onSuccess {
+            loadRoom(roomCode) // Recargar para ver los puntos
+        }
     }
 
     // ── Kick dialog ──────────────────────────────────────────
@@ -252,8 +265,8 @@ class RoomViewModel @Inject constructor(
         )
     }
 
-    private fun parseOnlineUser(map: Map<String, Any>?): OnlineUser? {
-        map ?: return null
+    private fun parseOnlineUser(element: JsonElement?): OnlineUser? {
+        val obj = element?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
         return OnlineUser(
             userId = (map["user_id"] as? Number)?.toInt() ?: return null,
             name   = map["name"] as? String ?: "",
@@ -319,7 +332,7 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onOnlineList()
             .onEach { msg ->
-                val list = (msg.payload as? List<Map<String, Any>>)
+                val list = msg.payload?.takeIf { it.isJsonArray }?.asJsonArray
                     ?.mapNotNull { parseOnlineUser(it) } ?: emptyList()
                 _uiState.update { it.copy(onlineUsers = list) }
             }.launchIn(viewModelScope)

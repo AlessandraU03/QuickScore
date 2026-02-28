@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ale.quickscore.features.auth.presentation.components.AuthButton
+import com.ale.quickscore.features.auth.presentation.components.AuthErrorText
 import com.ale.quickscore.features.questions.presentation.viewmodels.QuestionViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -106,7 +107,7 @@ fun LaunchQuestionSheet(
             OutlinedTextField(
                 value = uiState.text,
                 onValueChange = viewModel::onTextChange,
-                placeholder = { Text("Ej: ¿Cuál es la ley de la gravitación universal?", color = Color(0xFF948F99)) },
+                placeholder = { Text("Ej: ¿Cuándo nació Benito Juárez?", color = Color(0xFF948F99)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(100.dp),
@@ -127,7 +128,7 @@ fun LaunchQuestionSheet(
             OutlinedTextField(
                 value = uiState.correctAnswer,
                 onValueChange = viewModel::onCorrectAnswerChange,
-                placeholder = { Text("Ej: Newton", color = Color(0xFF948F99)) },
+                placeholder = { Text("Ej: 21 de marzo", color = Color(0xFF948F99)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
@@ -177,7 +178,12 @@ fun LaunchQuestionSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Mostrar error si existe
+            AuthErrorText(error = uiState.error)
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Launch Button
             AuthButton(

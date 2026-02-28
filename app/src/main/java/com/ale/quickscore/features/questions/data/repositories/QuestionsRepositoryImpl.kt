@@ -51,7 +51,10 @@ class QuestionsRepositoryImpl @Inject constructor(
 
     override suspend fun closeQuestion(roomCode: String, questionId: Int): Result<Unit> = runCatching {
         val res = api.closeQuestion(roomCode, questionId)
-        if (!res.isSuccessful) throw Exception("Error ${res.code()}")
+        if (!res.isSuccessful) {
+            val errorMsg = parseError(res.errorBody()?.string()) ?: "Error ${res.code()}"
+            throw Exception(errorMsg)
+        }
     }
 
     override suspend fun submitAnswer(
