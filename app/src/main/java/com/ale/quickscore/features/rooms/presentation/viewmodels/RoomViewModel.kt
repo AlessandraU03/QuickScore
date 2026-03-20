@@ -9,7 +9,6 @@ import com.ale.quickscore.features.questions.domain.usecases.GetCurrentQuestionU
 import com.ale.quickscore.features.questions.domain.usecases.LaunchQuestionUseCase
 import com.ale.quickscore.features.questions.domain.usecases.SubmitAnswerUseCase
 import com.ale.quickscore.features.rooms.data.datasources.remote.websocket.WebSocketManager
-import com.ale.quickscore.features.rooms.domain.entities.RankingItem
 import com.ale.quickscore.features.rooms.domain.usecases.AddScoreUseCase
 import com.ale.quickscore.features.rooms.domain.usecases.CreateRoomUseCase
 import com.ale.quickscore.features.rooms.domain.usecases.EndRoomUseCase
@@ -19,6 +18,7 @@ import com.ale.quickscore.features.rooms.domain.usecases.JoinRoomUseCase
 import com.ale.quickscore.features.rooms.domain.usecases.StartRoomUseCase
 import com.ale.quickscore.features.rooms.presentation.screens.OnlineUser
 import com.ale.quickscore.features.rooms.presentation.screens.RoomUIState
+import com.google.gson.JsonElement
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,7 +66,11 @@ class RoomViewModel @Inject constructor(
     // ── UI Control ───────────────────────────────────────────
 
     fun toggleLaunchSheet(show: Boolean) {
-        _uiState.update { it.copy(showLaunchSheet = show) }
+        if (show && !_uiState.value.sessionStarted) {
+            _uiState.update { it.copy(error = "Primero debes iniciar la sesión") }
+            return
+        }
+        _uiState.update { it.copy(showLaunchSheet = show, error = null) }
     }
 
     // ── Sala ────────────────────────────────────────────────
@@ -114,9 +118,15 @@ class RoomViewModel @Inject constructor(
     }
 
     fun startRoom(roomCode: String) = viewModelScope.launch {
-        startRoomUseCase(roomCode).onFailure { e ->
-            _uiState.update { it.copy(error = e.message) }
-        }
+        _uiState.update { it.copy(isLoading = true, error = null) }
+        startRoomUseCase(roomCode).fold(
+            onSuccess = {
+                _uiState.update { it.copy(isLoading = false, sessionStarted = true) }
+            },
+            onFailure = { e ->
+                _uiState.update { it.copy(isLoading = false, error = e.message) }
+            }
+        )
     }
 
     fun endRoom(roomCode: String) = viewModelScope.launch {
@@ -126,7 +136,9 @@ class RoomViewModel @Inject constructor(
     }
 
     fun addScore(roomCode: String, targetUserId: Int, delta: Int) = viewModelScope.launch {
-        addScoreUseCase(roomCode, targetUserId, delta)
+        addScoreUseCase(roomCode, targetUserId, delta).onSuccess {
+            loadRoom(roomCode) // Recargar para ver los puntos
+        }
     }
 
     // ── Kick dialog ──────────────────────────────────────────
@@ -147,12 +159,11 @@ class RoomViewModel @Inject constructor(
     // ── Preguntas ─────────────────────────────────────────────
 
     fun launchQuestion(text: String, correctAnswer: String, points: Int) = viewModelScope.launch {
-        _uiState.update { it.copy(isLoading = true) }
         launchQuestionUseCase(currentRoomCode, text, correctAnswer, points).fold(
             onSuccess = { q -> 
-                _uiState.update { it.copy(activeQuestion = q, showLaunchSheet = false, isLoading = false) } 
+                _uiState.update { it.copy(activeQuestion = q, showLaunchSheet = false) } 
             },
-            onFailure = { e -> _uiState.update { it.copy(isLoading = false, error = e.message) } }
+            onFailure = { e -> _uiState.update { it.copy(error = e.message) } }
         )
     }
 
@@ -180,10 +191,6 @@ class RoomViewModel @Inject constructor(
                         lastAnswerPoints  = result.pointsEarned,
                         lastAnswerMessage = result.message
                     )
-                }
-                // Si la respuesta fue correcta, forzamos refresco del ranking
-                if (result.isCorrect) {
-                    loadRanking(currentRoomCode)
                 }
                 delay(3000)
                 _uiState.update { it.copy(lastAnswerCorrect = null, lastAnswerPoints = 0, lastAnswerMessage = "") }
@@ -229,20 +236,12 @@ class RoomViewModel @Inject constructor(
         )
     }
 
-    private fun parseOnlineUser(map: Map<String, Any>?): OnlineUser? {
-        map ?: return null
+    private fun parseOnlineUser(element: JsonElement?): OnlineUser? {
+        val obj = element?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
         return OnlineUser(
-            userId = (map["user_id"] as? Number)?.toInt() ?: return null,
-            name   = map["name"] as? String ?: "",
-            role   = map["role"] as? String ?: ""
-        )
-    }
-
-    private fun parseRankingItem(map: Map<String, Any>): RankingItem? {
-        return RankingItem(
-            userId = (map["user_id"] as? Number)?.toInt() ?: return null,
-            name = map["name"] as? String ?: "",
-            score = (map["score"] as? Number)?.toInt() ?: 0
+            userId = obj.get("user_id")?.asInt ?: return null,
+            name   = obj.get("name")?.asString ?: "",
+            role   = obj.get("role")?.asString ?: ""
         )
     }
 
@@ -255,15 +254,9 @@ class RoomViewModel @Inject constructor(
             .launchIn(viewModelScope)
 
         wsManager.onScoreUpdate()
-            .onEach { msg ->
-                // Tu backend Go envía el ranking completo en el payload de "score_update"
-                val payload = msg.payload as? List<Map<String, Any>>
-                if (payload != null) {
-                    val updatedRanking = payload.mapNotNull { parseRankingItem(it) }
-                    _uiState.update { it.copy(ranking = updatedRanking) }
-                } else {
-                    loadRanking(roomCode)
-                }
+            .onEach {
+                loadRoom(roomCode)
+                loadRanking(roomCode)
             }.launchIn(viewModelScope)
 
         wsManager.onSessionStarted()
@@ -276,8 +269,7 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onParticipantConnected()
             .onEach { msg ->
-                val payload = msg.payload as? Map<String, Any>
-                parseOnlineUser(payload)?.let { user ->
+                parseOnlineUser(msg.payload)?.let { user ->
                     _uiState.update { state ->
                         val updated = state.onlineUsers.filterNot { it.userId == user.userId } + user
                         state.copy(onlineUsers = updated)
@@ -287,8 +279,7 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onParticipantDisconnected()
             .onEach { msg ->
-                val payload = msg.payload as? Map<String, Any>
-                val userId = (payload?.get("user_id") as? Number)?.toInt()
+                val userId = msg.payload?.takeIf { it.isJsonObject }?.asJsonObject?.get("user_id")?.asInt
                 _uiState.update { state ->
                     state.copy(onlineUsers = state.onlineUsers.filterNot { it.userId == userId })
                 }
@@ -296,15 +287,14 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onOnlineList()
             .onEach { msg ->
-                val list = (msg.payload as? List<Map<String, Any>>)
+                val list = msg.payload?.takeIf { it.isJsonArray }?.asJsonArray
                     ?.mapNotNull { parseOnlineUser(it) } ?: emptyList()
                 _uiState.update { it.copy(onlineUsers = list) }
             }.launchIn(viewModelScope)
 
         wsManager.onParticipantKicked()
             .onEach { msg ->
-                val payload = msg.payload as? Map<String, Any>
-                val kickedId = (payload?.get("user_id") as? Number)?.toInt()
+                val kickedId = msg.payload?.takeIf { it.isJsonObject }?.asJsonObject?.get("user_id")?.asInt
                 if (kickedId == sessionManager.getUserId()) {
                     _uiState.update { it.copy(sessionEnded = true, error = "Fuiste expulsado de la sala") }
                 } else {
@@ -316,17 +306,15 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onNewQuestion()
             .onEach { msg ->
-                val payload = msg.payload as? Map<String, Any>
-                if (payload != null) {
-                    val q = Question(
-                        id     = (payload["id"] as? Number)?.toInt() ?: 0,
-                        roomId = (payload["room_id"] as? Number)?.toInt() ?: 0,
-                        text   = payload["text"] as? String ?: "",
-                        points = (payload["points"] as? Number)?.toInt() ?: 0,
-                        status = payload["status"] as? String ?: "open"
-                    )
-                    _uiState.update { it.copy(activeQuestion = q, showLaunchSheet = false) }
-                }
+                val p = msg.payload?.takeIf { it.isJsonObject }?.asJsonObject
+                val q = Question(
+                    id     = p?.get("id")?.asInt ?: 0,
+                    roomId = p?.get("room_id")?.asInt ?: 0,
+                    text   = p?.get("text")?.asString ?: "",
+                    points = p?.get("points")?.asInt ?: 0,
+                    status = "open"
+                )
+                _uiState.update { it.copy(activeQuestion = q) }
             }.launchIn(viewModelScope)
 
         wsManager.onQuestionClosed()
@@ -335,8 +323,6 @@ class RoomViewModel @Inject constructor(
 
         wsManager.onAnswerCorrect()
             .onEach {
-                // Cuando alguien acierta, esperamos medio segundo a que el backend procese el ranking
-                delay(500)
                 loadRanking(roomCode)
             }.launchIn(viewModelScope)
     }

@@ -76,14 +76,7 @@ fun NavigationWrapper() {
                         popUpTo(HomeRoute(route.isHost)) { inclusive = false }
                     }
                 },
-                onNavigateToHome = {
-                    navController.navigate(HomeRoute(route.isHost)) {
-                        popUpTo(HomeRoute(route.isHost)) { inclusive = true }
-                    }
-                },
-                onNavigateToRanking = {
-                    navController.navigate(LeaderboardRoute(route.roomCode))
-                }
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -92,7 +85,9 @@ fun NavigationWrapper() {
             LeaderboardScreen(
                 roomCode = route.roomCode,
                 onBack = {
-                    navController.popBackStack()
+                    navController.navigate(LoginRoute) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             )
         }

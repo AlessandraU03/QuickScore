@@ -1,11 +1,7 @@
 package com.ale.quickscore.features.rooms.presentation.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,18 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Leaderboard
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PersonRemove
-import androidx.compose.material.icons.filled.Quiz
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.ale.quickscore.features.questions.presentation.components.AnswerResultBanner
 import com.ale.quickscore.features.questions.presentation.screens.LaunchQuestionSheet
 import com.ale.quickscore.features.rooms.domain.entities.Participant
 import com.ale.quickscore.features.rooms.domain.entities.RankingItem
@@ -53,8 +37,7 @@ import com.ale.quickscore.features.rooms.presentation.viewmodels.RoomViewModel
 fun RoomDetailScreen(
     roomCode: String,
     onSessionEnded: (String) -> Unit,
-    onNavigateToHome: () -> Unit,
-    onNavigateToRanking: () -> Unit,
+    onBack: () -> Unit,
     viewModel: RoomViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -88,24 +71,11 @@ fun RoomDetailScreen(
         )
     }
 
-    // Decidir qué vista mostrar: Si hay pregunta activa, todos ven la vista de pregunta
+    // Si hay una pregunta activa, mostrar la vista de pregunta para ambos (o adaptada)
     if (uiState.activeQuestion != null) {
-        ParticipantQuestionView(
-            uiState = uiState,
-            viewModel = viewModel,
-            onNavigateToHome = onNavigateToHome,
-            onNavigateToRanking = onNavigateToRanking,
-            isHost = isHost
-        )
+        QuestionView(isHost, uiState, viewModel, onBack)
     } else {
-        RoomManagementView(
-            roomCode = roomCode,
-            isHost = isHost,
-            uiState = uiState,
-            viewModel = viewModel,
-            onNavigateToHome = onNavigateToHome,
-            onNavigateToRanking = onNavigateToRanking
-        )
+        RoomManagementView(roomCode, isHost, uiState, viewModel, onBack)
     }
 
     if (uiState.showLaunchSheet) {
@@ -123,26 +93,21 @@ fun RoomManagementView(
     isHost: Boolean,
     uiState: RoomUIState,
     viewModel: RoomViewModel,
-    onNavigateToHome: () -> Unit,
-    onNavigateToRanking: () -> Unit
+    onBack: () -> Unit
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Detalle de Sala", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateToHome) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                 },
                 actions = { ConnectionStatusBadge(isConnected = uiState.isConnected) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
         bottomBar = {
-            BottomNavigationBar(
-                selectedItem = "SALAS",
-                onHomeClick = onNavigateToHome,
-                onRankingClick = onNavigateToRanking
-            )
+            BottomNavigationBar(selectedItem = "SALAS")
         },
         containerColor = Color(0xFFF8F9FE)
     ) { padding ->
@@ -155,22 +120,13 @@ fun RoomManagementView(
             item { StaffSection() }
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    val participantCount = uiState.onlineUsers.size.takeIf { it > 0 } ?: uiState.room?.participants?.size ?: 0
-                    Text("PARTICIPANTES ($participantCount)", fontWeight = FontWeight.Bold)
+                    Text("PARTICIPANTES (${uiState.room?.participants?.size ?: 0})", fontWeight = FontWeight.Bold)
                     if (isHost) Text("Gestionar", color = Color(0xFF79747E), modifier = Modifier.clickable { })
                 }
             }
-            
-            val displayParticipants = if (uiState.onlineUsers.isNotEmpty()) {
-                uiState.onlineUsers.map { Participant(it.userId, it.name, 0) } 
-            } else {
-                uiState.room?.participants ?: emptyList()
-            }
-
-            items(displayParticipants) { participant ->
+            items(uiState.room?.participants ?: emptyList()) { participant ->
                 ParticipantDetailItem(participant, isHost, viewModel, roomCode)
             }
-            
             item {
                 if (isHost) {
                     Button(
@@ -193,12 +149,11 @@ fun RoomManagementView(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ParticipantQuestionView(
+fun QuestionView(
+    isHost: Boolean,
     uiState: RoomUIState,
     viewModel: RoomViewModel,
-    onNavigateToHome: () -> Unit,
-    onNavigateToRanking: () -> Unit,
-    isHost: Boolean
+    onBack: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -210,22 +165,23 @@ fun ParticipantQuestionView(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateToHome, modifier = Modifier.background(Color(0xFFF3EDFF), CircleShape)) {
+                    IconButton(onClick = onBack, modifier = Modifier.background(Color(0xFFF3EDFF), CircleShape)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color(0xFF7C4DFF))
                     }
                 },
                 actions = {
-                    IconButton(onClick = { }) { Icon(Icons.Default.Info, null, tint = Color(0xFF7C4DFF) ) }
+                    if (isHost) {
+                        IconButton(onClick = { viewModel.closeQuestion() }) {
+                            Icon(Icons.Default.Close, "Cerrar Pregunta", tint = Color.Red)
+                        }
+                    }
+                    IconButton(onClick = { }) { Icon(Icons.Default.Info, null, tint = Color(0xFF7C4DFF)) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
         bottomBar = {
-            BottomNavigationBar(
-                selectedItem = "JUEGO",
-                onHomeClick = onNavigateToHome,
-                onRankingClick = onNavigateToRanking
-            )
+            BottomNavigationBar(selectedItem = "JUEGO")
         },
         containerColor = Color.White
     ) { padding ->
@@ -235,19 +191,26 @@ fun ParticipantQuestionView(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Resultado de la respuesta
-            AnimatedVisibility(
-                visible = uiState.lastAnswerCorrect != null,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                AnswerResultBanner(
-                    isCorrect = uiState.lastAnswerCorrect ?: false,
-                    pointsEarned = uiState.lastAnswerPoints,
-                    message = uiState.lastAnswerMessage,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+            // Timer
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Timer, null, tint = Color(0xFF7C4DFF), modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("TIEMPO RESTANTE", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, color = Color(0xFF49454F)))
+                }
+                Surface(color = Color(0xFFF8F9FE), shape = RoundedCornerShape(12.dp)) {
+                    Text("12s", modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), fontWeight = FontWeight.Bold, color = Color(0xFF7C4DFF))
+                }
             }
+            Spacer(modifier = Modifier.height(12.dp))
+            LinearProgressIndicator(
+                progress = { 0.6f },
+                modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                color = Color(0xFF7C4DFF),
+                trackColor = Color(0xFFF3EDFF)
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
 
             // Question Card
             Card(
@@ -265,18 +228,8 @@ fun ParticipantQuestionView(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            if (isHost) {
-                // VISTA DEL HOST: Botón para cerrar pregunta
-                Button(
-                    onClick = { viewModel.closeQuestion() },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350))
-                ) {
-                    Text("FINALIZAR PREGUNTA", fontWeight = FontWeight.Bold)
-                }
-            } else {
-                // VISTA DEL PARTICIPANTE: Answer Input
+            if (!isHost) {
+                // Answer Input for Participant
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text("TU RESPUESTA", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, color = Color(0xFF49454F)))
                     Spacer(modifier = Modifier.height(12.dp))
@@ -302,21 +255,37 @@ fun ParticipantQuestionView(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C4DFF)),
                     enabled = !uiState.isAnswering && uiState.currentAnswer.isNotBlank()
                 ) {
-                    if (uiState.isAnswering) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                    } else {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("ENVIAR RESPUESTA", fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(18.dp))
-                        }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("ENVIAR RESPUESTA", fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(18.dp))
+                    }
+                }
+            } else {
+                // Host specific view while question is active
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF3EDFF))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Groups, contentDescription = null, tint = Color(0xFF7C4DFF), modifier = Modifier.size(32.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Los estudiantes están respondiendo...", fontWeight = FontWeight.Bold, color = Color(0xFF7C4DFF))
+                        Text("${uiState.onlineUsers.size - 1} participantes activos", style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 
-                // Mostrar error si falla el envío
-                uiState.error?.let {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(it, color = Color.Red, style = MaterialTheme.typography.bodySmall)
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                OutlinedButton(
+                    onClick = { viewModel.closeQuestion() },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.Red)
+                ) {
+                    Text("FINALIZAR PREGUNTA AHORA", fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -432,29 +401,16 @@ fun ParticipantDetailItem(participant: Participant, isHost: Boolean, viewModel: 
 }
 
 @Composable
-fun BottomNavigationBar(
-    selectedItem: String,
-    onHomeClick: () -> Unit,
-    onRankingClick: () -> Unit
-) {
+fun BottomNavigationBar(selectedItem: String) {
     NavigationBar(containerColor = Color.White) {
-        val items = listOf(
-            Triple("SALAS", Icons.Default.Home, onHomeClick),
-            Triple("JUEGO", Icons.Default.Quiz, { }),
-            Triple("RANKING", Icons.Default.EmojiEvents, onRankingClick),
-            Triple("PERFIL", Icons.Default.Person, { })
-        )
-        items.forEach { (label, icon, onClick) ->
+        val items = listOf("JUEGO" to Icons.Default.Quiz, "RANKING" to Icons.Default.EmojiEvents, "CHAT" to Icons.Default.Chat, "PERFIL" to Icons.Default.Person)
+        items.forEach { (label, icon) ->
             NavigationBarItem(
                 selected = selectedItem == label,
-                onClick = onClick,
+                onClick = { },
                 icon = { Icon(icon, null) },
                 label = { Text(label) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color(0xFF7C4DFF),
-                    selectedTextColor = Color(0xFF7C4DFF),
-                    indicatorColor = Color(0xFFF3EDFF)
-                )
+                colors = NavigationBarItemDefaults.colors(selectedIconColor = Color(0xFF7C4DFF), selectedTextColor = Color(0xFF7C4DFF), indicatorColor = Color(0xFFF3EDFF))
             )
         }
     }

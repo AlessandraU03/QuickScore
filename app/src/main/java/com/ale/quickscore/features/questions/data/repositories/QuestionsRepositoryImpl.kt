@@ -24,34 +24,29 @@ class QuestionsRepositoryImpl @Inject constructor(
         if (res.isSuccessful) {
             res.body()?.toDomain() ?: throw Exception("Sin respuesta del servidor")
         } else {
-            val errorBody = res.errorBody()?.string()
-            val errorMessage = try {
-                JSONObject(errorBody ?: "").getString("error")
-            } catch (e: Exception) {
-                when (res.code()) {
-                    403 -> "Solo el host puede lanzar preguntas"
-                    400 -> "La sesión debe estar activa o datos inválidos"
-                    else -> "Error ${res.code()}: ${res.message()}"
-                }
-            }
-            throw Exception(errorMessage)
+            val errorMsg = parseError(res.errorBody()?.string()) ?: "Error ${res.code()}"
+            throw Exception(errorMsg)
         }
     }
 
     override suspend fun getCurrentQuestion(roomCode: String): Result<Question?> = runCatching {
         val res = api.getCurrentQuestion(roomCode)
-        if (res.isSuccessful) {
-            res.body()?.toDomain()
-        } else if (res.code() == 204) {
-            null
-        } else {
-            throw Exception("Error ${res.code()}")
+        when (res.code()) {
+            200  -> res.body()?.toDomain()
+            204  -> null
+            else -> {
+                val errorMsg = parseError(res.errorBody()?.string()) ?: "Error ${res.code()}"
+                throw Exception(errorMsg)
+            }
         }
     }
 
     override suspend fun closeQuestion(roomCode: String, questionId: Int): Result<Unit> = runCatching {
         val res = api.closeQuestion(roomCode, questionId)
-        if (!res.isSuccessful) throw Exception("Error ${res.code()}")
+        if (!res.isSuccessful) {
+            val errorMsg = parseError(res.errorBody()?.string()) ?: "Error ${res.code()}"
+            throw Exception(errorMsg)
+        }
     }
 
     override suspend fun submitAnswer(
@@ -63,13 +58,19 @@ class QuestionsRepositoryImpl @Inject constructor(
         if (res.isSuccessful) {
             res.body()?.toDomain() ?: throw Exception("Sin respuesta")
         } else {
-            val errorBody = res.errorBody()?.string()
-            val errorMessage = try {
-                JSONObject(errorBody ?: "").getString("error")
-            } catch (e: Exception) {
-                "Error ${res.code()}"
-            }
-            throw Exception(errorMessage)
+            val errorMsg = parseError(res.errorBody()?.string()) ?: "Error ${res.code()}"
+            throw Exception(errorMsg)
+        }
+    }
+
+    private fun parseError(errorBody: String?): String? {
+        if (errorBody == null) return null
+        return try {
+            val json = JSONObject(errorBody)
+            json.optString("message").takeIf { it.isNotBlank() }
+                ?: json.optString("error").takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            null
         }
     }
 }
